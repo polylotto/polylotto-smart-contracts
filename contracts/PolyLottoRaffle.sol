@@ -1063,6 +1063,16 @@ interface IPolyLottoRaffle {
      * @notice returns param that shows that all raffle categories are in sync
      */
     function getRebootChecker() external returns (uint256);
+
+    /**
+     * @notice returns the raffle end time
+     */
+    function getRaffleEndTime() external returns (uint256);
+
+    /**
+     * @notice returns the reboot end time
+     */
+    function getRebootEndTime() external returns (uint256);
 }
 
 //Lottery Contract
@@ -1341,11 +1351,11 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         rafflesData[_category].raffleState = _state;
     }
 
-    function getRebootEndTime() external view returns (uint256) {
+    function getRebootEndTime() external view override returns (uint256) {
         return (currentRaffleRebootEndTime);
     }
 
-    function getRaffleEndTime() external view returns (uint256) {
+    function getRaffleEndTime() external view override returns (uint256) {
         return (currentRaffleEndTime);
     }
 

@@ -1047,8 +1047,17 @@ interface IPolyLottoRaffle {
      * @notice returns param that shows that all raffle categories are in sync
      */
     function getRebootChecker() external returns (uint256);
-}
 
+    /**
+     * @notice returns the raffle end time
+     */
+    function getRaffleEndTime() external returns (uint256);
+
+    /**
+     * @notice returns the reboot end time
+     */
+    function getRebootEndTime() external returns (uint256);
+}
 // File: contracts/interfaces/IRandomNumberGenerator.sol
 
 pragma solidity ^0.8.4;

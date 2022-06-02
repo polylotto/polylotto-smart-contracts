@@ -666,7 +666,6 @@ interface IRandomNumberGenerator {
      */
     function viewLatestRaffleId() external view returns (uint256);
 }
-
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -831,8 +830,17 @@ interface IPolyLottoRaffle {
      * @notice returns param that shows that all raffle categories are in sync
      */
     function getRebootChecker() external returns (uint256);
-}
 
+    /**
+     * @notice returns the raffle end time
+     */
+    function getRaffleEndTime() external returns (uint256);
+
+    /**
+     * @notice returns the reboot end time
+     */
+    function getRebootEndTime() external returns (uint256);
+}
 //Keeper Contract
 
 pragma solidity >=0.8.0 <0.9.0;
@@ -871,8 +879,8 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
 
             uint256 raffleID = polyLotto.getRaffleID();
 
-            uint256 currentRaffleEndTime;
-            uint256 currentRaffleRebootEndTime;
+            uint256 currentRaffleEndTime = polyLotto.getRaffleEndTime();
+            uint256 currentRaffleRebootEndTime = polyLotto.getRebootEndTime();
 
             IPolyLottoRaffle.RaffleStruct memory _raffle = polyLotto.getRaffle(
                 _category,
