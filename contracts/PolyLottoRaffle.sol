@@ -1101,7 +1101,7 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     address public injectorAddress;
     address public operatorAddress;
     address public treasuryAddress;
-    address public randomGeneratorAddress;
+    address public randomGenerator;
     address public polylottoKeeper;
 
     bool internal usingPolyLottoToken;
@@ -1184,10 +1184,7 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     }
 
     modifier onlyRandomGenerator() {
-        require(
-            msg.sender == randomGeneratorAddress,
-            "Not randomGenerator Address"
-        );
+        require(msg.sender == randomGenerator, "Not randomGenerator Address");
         _;
     }
 
@@ -1604,10 +1601,15 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     /**
      * @notice Set keeper address
      * @dev Only callable by operator
-     * @param _keeperAddress: address of the operator
+     * @param _keeperAddress: address of the keeper
+     * @param _randomGenerator: address of the randomGenerator
      */
-    function setKeeperAddress(address _keeperAddress) external onlyOperator {
+    function setKeeperAndRandomGeneratorAddress(
+        address _keeperAddress,
+        address _randomGenerator
+    ) external onlyOperator {
         polylottoKeeper = _keeperAddress;
+        randomGenerator = _randomGenerator;
     }
 
     function injectFunds(RaffleCategory _category, uint256 _amount)

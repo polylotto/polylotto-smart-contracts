@@ -957,6 +957,22 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
     }
 
     /**
+     * @notice Set the address for the PolyLottoKeeper
+     * @param _polylottoRaffle: address of the PancakeSwap lottery
+     */
+    function setPolylottoRaffle(address _polylottoRaffle) external onlyOwner {
+        polyLotto = IPolyLottoRaffle(_polylottoRaffle);
+    }
+
+    /**
+     * @notice Set the address for the PolyLotto Raffle
+     * @param _randomGenAddress: address of the PolyLotto Raffle
+     */
+    function setRandomGenerator(address _randomGenAddress) external onlyOwner {
+        randomGenerator = IRandomNumberGenerator(_randomGenAddress);
+    }
+
+    /**
      * @notice View latestLotteryId
      */
     function viewLatestRaffleId() external view returns (uint256) {

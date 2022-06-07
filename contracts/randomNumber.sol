@@ -1114,9 +1114,11 @@ contract RandomNumberGenerator is
     constructor(
         address _vrfCoordinator,
         address _linkToken,
-        uint256 _fee
+        uint256 _fee,
+        bytes32 _keyhash
     ) VRFConsumerBase(_vrfCoordinator, _linkToken) {
         fee = _fee;
+        keyHash = _keyhash;
     }
 
     /**

@@ -59,7 +59,7 @@ interface IPolyLottoRaffle {
      */
     function getWinners(
         RaffleCategory _category,
-        uint256[] calldata _winningTicketsIDs
+        uint32[] calldata _winningTicketsIDs
     ) external;
 
     /**
