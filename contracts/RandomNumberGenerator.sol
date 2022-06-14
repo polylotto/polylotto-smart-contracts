@@ -897,6 +897,7 @@ interface IPolyLottoRaffle {
         INACTIVE,
         WAITING_FOR_REBOOT,
         OPEN,
+        TICKETS_DRAWN,
         PAYOUT,
         DEACTIVATED
     }
@@ -938,13 +939,19 @@ interface IPolyLottoRaffle {
     /**
      * @notice gets the Winners of the current Raffle
      * @param _category: Raffle Category
-     * @param _winningTicketsIDs: ticket IDs of the winning tickets
-     * @dev Callable by randomGenerator contract
+     * @dev Callable by keepers contract
      */
-    function getWinners(
-        RaffleCategory _category,
-        uint256[] calldata _winningTicketsIDs
-    ) external;
+    function getWinners(RaffleCategory _category) external;
+
+    /**
+     * @notice sets the raffle state to tickets drawn
+     * @param _category: Raffle Category
+     * @param _drawCompleted: boolean to tell contract when draw has finis
+     * @dev Callable by randomGenerator contract 
+    
+     */
+    function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
+        external;
 
     /**
      * @notice sends out winnings to the Raffle Winners
@@ -1022,13 +1029,14 @@ interface IPolyLottoRaffle {
     /**
      * @notice View current raffle id
      */
-    function getRaffleID() external returns (uint256);
+    function getRaffleID() external view returns (uint256);
 
     /**
      * @notice View Raffle Information
      */
     function getRaffle(RaffleCategory _category, uint256 _raffleID)
         external
+        view
         returns (RaffleStruct memory);
 
     /**
@@ -1036,27 +1044,36 @@ interface IPolyLottoRaffle {
      */
     function getRaffleData(RaffleCategory _category)
         external
+        view
         returns (RaffleData memory);
 
     /**
      * @notice get number of winners
      */
-    function getNoOfWinners() external returns (uint256);
+    function getNoOfWinners() external view returns (uint256);
 
     /**
      * @notice returns param that shows that all raffle categories are in sync
      */
-    function getRebootChecker() external returns (uint256);
+    function getRebootChecker() external view returns (uint256);
+
+    /**
+     * @notice returns param that shows if a random request has been made in a raffle category
+     */
+    function getRandomGenChecker(RaffleCategory _category)
+        external
+        view
+        returns (bool);
 
     /**
      * @notice returns the raffle end time
      */
-    function getRaffleEndTime() external returns (uint256);
+    function getRaffleEndTime() external view returns (uint256);
 
     /**
      * @notice returns the reboot end time
      */
-    function getRebootEndTime() external returns (uint256);
+    function getRebootEndTime() external view returns (uint256);
 }
 // File: contracts/interfaces/IRandomNumberGenerator.sol
 
@@ -1068,6 +1085,14 @@ interface IRandomNumberGenerator {
      */
     function getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
         external;
+
+    /**
+     * Views random result
+     */
+    function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
+        external
+        view
+        returns (uint256);
 
     /**
      * View latest raffle Id numbers
@@ -1090,13 +1115,19 @@ contract RandomNumberGenerator is
     address public polylottoRaffle;
     bytes32 public keyHash;
     bytes32 public latestRequestId;
-    uint32 public randomResult;
     uint256 public fee;
     uint256 public latestRaffleId;
 
     //Help keep track of return value from vrf per category
     mapping(bytes32 => IPolyLottoRaffle.RaffleCategory)
         private bytesCategoryMapping;
+
+    mapping(IPolyLottoRaffle.RaffleCategory => uint256)
+        private noOfRandomRequests;
+
+    //To keep track of different randomResults per request for each category
+    mapping(IPolyLottoRaffle.RaffleCategory => mapping(uint256 => uint256))
+        private randomResults;
 
     modifier onlyKeeper() {
         require(polylottoKeeper == msg.sender, "only keeper address");
@@ -1129,9 +1160,7 @@ contract RandomNumberGenerator is
     function getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
         external
         override
-        onlyKeeper
     {
-        require(msg.sender == polylottoKeeper, "Only PolyLottoKeeper");
         require(keyHash != bytes32(0), "Must have valid key hash");
         require(
             LINK.balanceOf(address(this)) >= fee,
@@ -1139,6 +1168,7 @@ contract RandomNumberGenerator is
         );
         latestRequestId = requestRandomness(keyHash, fee);
         bytesCategoryMapping[latestRequestId] = _category;
+        IPolyLottoRaffle(polylottoRaffle).setRaffleAsDrawn(_category, false);
     }
 
     /**
@@ -1187,13 +1217,6 @@ contract RandomNumberGenerator is
     }
 
     /**
-     * @notice View latestLotteryId
-     */
-    function viewLatestRaffleId() external view override returns (uint256) {
-        return latestRaffleId;
-    }
-
-    /**
      * @notice Check link balance
      */
     function checkLinkBalance() external view returns (uint256) {
@@ -1211,36 +1234,27 @@ contract RandomNumberGenerator is
         IPolyLottoRaffle.RaffleCategory _category = bytesCategoryMapping[
             latestRequestId
         ];
-        uint256[] memory winningTicketsPosn = expand(_category, randomness);
-
-        IPolyLottoRaffle(polylottoRaffle).getWinners(
-            _category,
-            winningTicketsPosn
-        );
-
+        noOfRandomRequests[_category]++;
+        randomResults[_category][noOfRandomRequests[_category]] = randomness;
         latestRaffleId = IPolyLottoRaffle(polylottoRaffle).getRaffleID();
+        IPolyLottoRaffle(polylottoRaffle).setRaffleAsDrawn(_category, true);
     }
 
-    function expand(
-        IPolyLottoRaffle.RaffleCategory _category,
-        uint256 randomValue
-    ) internal returns (uint256[] memory) {
-        uint256 noOfWinners = IPolyLottoRaffle(polylottoRaffle)
-            .getNoOfWinners();
-        uint256 raffleID = IPolyLottoRaffle(polylottoRaffle).getRaffleID();
+    /**
+     * @notice Returns the randomResult
+     */
+    function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
+        external
+        view
+        returns (uint256)
+    {
+        return randomResults[_category][noOfRandomRequests[_category]];
+    }
 
-        IPolyLottoRaffle.RaffleStruct memory raffle = IPolyLottoRaffle(
-            polylottoRaffle
-        ).getRaffle(_category, raffleID);
-
-        uint256[] memory winningTicketsIDs = new uint256[](noOfWinners);
-
-        for (uint256 i = 0; i < noOfWinners; i++) {
-            winningTicketsIDs[i] =
-                (uint256(keccak256(abi.encode(randomValue, i))) %
-                    raffle.noOfTicketsSold) +
-                1;
-        }
-        return winningTicketsIDs;
+    /**
+     * @notice Returns the current raffle ID.
+     */
+    function viewLatestRaffleId() external view override returns (uint256) {
+        return latestRaffleId;
     }
 }

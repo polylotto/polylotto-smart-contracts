@@ -899,6 +899,31 @@ interface IUniswapV2Router02 is IUniswapV2Router01 {
     ) external;
 }
 
+// File: contracts/interfaces/IRandomNumberGenerator.sol
+
+pragma solidity ^0.8.4;
+
+interface IRandomNumberGenerator {
+    /**
+     * Requests randomness from vrf
+     */
+    function getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
+        external;
+
+    /**
+     * Views random result
+     */
+    function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
+        external
+        view
+        returns (uint256);
+
+    /**
+     * View latest raffle Id numbers
+     */
+    function viewLatestRaffleId() external view returns (uint256);
+}
+
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -913,6 +938,7 @@ interface IPolyLottoRaffle {
         INACTIVE,
         WAITING_FOR_REBOOT,
         OPEN,
+        TICKETS_DRAWN,
         PAYOUT,
         DEACTIVATED
     }
@@ -954,13 +980,19 @@ interface IPolyLottoRaffle {
     /**
      * @notice gets the Winners of the current Raffle
      * @param _category: Raffle Category
-     * @param _winningTicketsIDs: ticket IDs of the winning tickets
-     * @dev Callable by randomGenerator contract
+     * @dev Callable by keepers contract
      */
-    function getWinners(
-        RaffleCategory _category,
-        uint256[] calldata _winningTicketsIDs
-    ) external;
+    function getWinners(RaffleCategory _category) external;
+
+    /**
+     * @notice sets the raffle state to tickets drawn
+     * @param _category: Raffle Category
+     * @param _drawCompleted: boolean to tell contract when draw has finis
+     * @dev Callable by randomGenerator contract 
+    
+     */
+    function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
+        external;
 
     /**
      * @notice sends out winnings to the Raffle Winners
@@ -1038,13 +1070,14 @@ interface IPolyLottoRaffle {
     /**
      * @notice View current raffle id
      */
-    function getRaffleID() external returns (uint256);
+    function getRaffleID() external view returns (uint256);
 
     /**
      * @notice View Raffle Information
      */
     function getRaffle(RaffleCategory _category, uint256 _raffleID)
         external
+        view
         returns (RaffleStruct memory);
 
     /**
@@ -1052,34 +1085,43 @@ interface IPolyLottoRaffle {
      */
     function getRaffleData(RaffleCategory _category)
         external
+        view
         returns (RaffleData memory);
 
     /**
      * @notice get number of winners
      */
-    function getNoOfWinners() external returns (uint256);
+    function getNoOfWinners() external view returns (uint256);
 
     /**
      * @notice returns param that shows that all raffle categories are in sync
      */
-    function getRebootChecker() external returns (uint256);
+    function getRebootChecker() external view returns (uint256);
+
+    /**
+     * @notice returns param that shows if a random request has been made in a raffle category
+     */
+    function getRandomGenChecker(RaffleCategory _category)
+        external
+        view
+        returns (bool);
 
     /**
      * @notice returns the raffle end time
      */
-    function getRaffleEndTime() external returns (uint256);
+    function getRaffleEndTime() external view returns (uint256);
 
     /**
      * @notice returns the reboot end time
      */
-    function getRebootEndTime() external returns (uint256);
+    function getRebootEndTime() external view returns (uint256);
 }
 
 //Lottery Contract
 
 pragma solidity >=0.8.0 <0.9.0;
 
-contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
+contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     uint256 internal currentRaffleStartTime;
@@ -1154,6 +1196,9 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
     //Mapping of TicketIDs for each Raffle Category
     mapping(RaffleCategory => uint256) private currentTicketID;
+
+    //Mapping to keep track of if a randomRequest has already been made for a category
+    mapping(RaffleCategory => bool) private randomGenChecker;
 
     modifier stateCheck() {
         require(rebootChecker == 3, "Reboot check not complete");
@@ -1319,8 +1364,8 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
             setRaffleState(_category, RaffleState.OPEN);
             updateWinnersPayouts(_category);
+            randomGenChecker[_category] = false;
         }
-
         rebootChecker = 0;
         emit RaffleOpen(
             raffleID,
@@ -1384,6 +1429,15 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
     function getRebootChecker() external view override returns (uint256) {
         return rebootChecker;
+    }
+
+    function getRandomGenChecker(RaffleCategory _category)
+        external
+        view
+        override
+        returns (bool)
+    {
+        return randomGenChecker[_category];
     }
 
     function viewUserTickets(
@@ -1511,11 +1565,26 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return userTransactionHistory[_user][_txIndex];
     }
 
-    function getWinners(
-        RaffleCategory _category,
-        uint256[] memory _winningTicketsIDs
-    ) external override onlyRandomGenerator {
+    function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
+        external
+        override
+        onlyRandomGenerator
+    {
+        if (_drawCompleted) {
+            setRaffleState(_category, RaffleState.TICKETS_DRAWN);
+        }
+        randomGenChecker[_category] = true;
+    }
+
+    function getWinners(RaffleCategory _category)
+        external
+        override
+        onlyPolylottoKeeper
+    {
         RaffleStruct storage _raffle = raffles[_category][raffleID];
+        uint256 randomResult = IRandomNumberGenerator(randomGenerator)
+            .viewRandomResult(_category);
+        uint256[] memory _winningTicketsIDs = expand(_category, randomResult);
 
         for (uint256 i = 0; i < noOfWinners; i++) {
             uint256 ticketIDsBeforeCurrentRaffle = currentTicketID[_category] -
@@ -1535,6 +1604,24 @@ contract polylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
         setRaffleState(_category, RaffleState.PAYOUT);
         emit RaffleEnded(_category, raffleID, RaffleState.PAYOUT);
+    }
+
+    function expand(RaffleCategory _category, uint256 randomValue)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        RaffleStruct memory raffle = raffles[_category][raffleID];
+
+        uint256[] memory winningTicketsIDs = new uint256[](noOfWinners);
+
+        for (uint256 i = 0; i < noOfWinners; i++) {
+            winningTicketsIDs[i] =
+                (uint256(keccak256(abi.encode(randomValue, i))) %
+                    raffle.noOfTicketsSold) +
+                1;
+        }
+        return winningTicketsIDs;
     }
 
     function payoutWinners(RaffleCategory _category)

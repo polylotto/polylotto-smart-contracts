@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -13,6 +13,7 @@ interface IPolyLottoRaffle {
         INACTIVE,
         WAITING_FOR_REBOOT,
         OPEN,
+        TICKETS_DRAWN,
         PAYOUT,
         DEACTIVATED
     }
@@ -54,13 +55,19 @@ interface IPolyLottoRaffle {
     /**
      * @notice gets the Winners of the current Raffle
      * @param _category: Raffle Category
-     * @param _winningTicketsIDs: ticket IDs of the winning tickets
-     * @dev Callable by randomGenerator contract
+     * @dev Callable by keepers contract
      */
-    function getWinners(
-        RaffleCategory _category,
-        uint32[] calldata _winningTicketsIDs
-    ) external;
+    function getWinners(RaffleCategory _category) external;
+
+    /**
+     * @notice sets the raffle state to tickets drawn
+     * @param _category: Raffle Category
+     * @param _drawCompleted: boolean to tell contract when draw has finis
+     * @dev Callable by randomGenerator contract 
+    
+     */
+    function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
+        external;
 
     /**
      * @notice sends out winnings to the Raffle Winners
@@ -138,13 +145,14 @@ interface IPolyLottoRaffle {
     /**
      * @notice View current raffle id
      */
-    function getRaffleID() external returns (uint256);
+    function getRaffleID() external view returns (uint256);
 
     /**
      * @notice View Raffle Information
      */
     function getRaffle(RaffleCategory _category, uint256 _raffleID)
         external
+        view
         returns (RaffleStruct memory);
 
     /**
@@ -152,25 +160,34 @@ interface IPolyLottoRaffle {
      */
     function getRaffleData(RaffleCategory _category)
         external
+        view
         returns (RaffleData memory);
 
     /**
      * @notice get number of winners
      */
-    function getNoOfWinners() external returns (uint256);
+    function getNoOfWinners() external view returns (uint256);
 
     /**
      * @notice returns param that shows that all raffle categories are in sync
      */
-    function getRebootChecker() external returns (uint256);
+    function getRebootChecker() external view returns (uint256);
+
+    /**
+     * @notice returns param that shows if a random request has been made in a raffle category
+     */
+    function getRandomGenChecker(RaffleCategory _category)
+        external
+        view
+        returns (bool);
 
     /**
      * @notice returns the raffle end time
      */
-    function getRaffleEndTime() external returns (uint256);
+    function getRaffleEndTime() external view returns (uint256);
 
     /**
      * @notice returns the reboot end time
      */
-    function getRebootEndTime() external returns (uint256);
+    function getRebootEndTime() external view returns (uint256);
 }
