@@ -1246,6 +1246,7 @@ contract RandomNumberGenerator is
     function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
         external
         view
+        override
         returns (uint256)
     {
         return randomResults[_category][noOfRandomRequests[_category]];
