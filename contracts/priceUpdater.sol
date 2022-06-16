@@ -606,6 +606,14 @@ contract PolyLottoPriceUpdater is Ownable, IPolyLottoPriceUpdater {
         PolyLottoToken = _newTokenAddress;
     }
 
+    /**
+     * @notice Set the address for the PolyLotto Raffle
+     * @param _polylottoAddress: address of the PolyLotto Raffle
+     */
+    function setPolyLottoAddress(address _polylottoAddress) external onlyOwner {
+        polyLottoRaffle = _polylottoAddress;
+    }
+
     // Function to get update price of token against Stable Token
 
     function updatePrice() external override operatorOrRaffle {

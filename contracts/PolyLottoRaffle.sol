@@ -1518,8 +1518,18 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         address _keeperAddress,
         address _randomGenerator
     ) external onlyOperator {
+        require(_keeperAddress != address(0), "Cannot be zero address");
+        require(_randomGenerator != address(0), "Cannot be zero address");
         polylottoKeeper = _keeperAddress;
         randomGenerator = _randomGenerator;
+    }
+
+    function setPriceUpdaterAddress(address _priceUpdater)
+        external
+        onlyOperator
+    {
+        require(_priceUpdater != address(0), "Cannot be zero address");
+        priceUpdater = _priceUpdater;
     }
 
     function injectFunds(RaffleCategory _category, uint256 _amount)
@@ -1660,7 +1670,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         external
         onlyOperator
     {
-        require(_tokenAddress != address(raffleToken), "Cannot be USDC token");
+        require(_tokenAddress != address(0), "Cannot be zero address");
+        require(
+            _tokenAddress != address(raffleToken),
+            "Cannot be raffleToken token"
+        );
 
         IERC20(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
 
@@ -1774,6 +1788,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         isRaffleDeactivated(RaffleCategory.WHALE)
         hasUpdatedToPolyLottoToken
     {
+        require(_newTokenAddress != address(0), "Cannot be zero address");
         require(
             raffleToken.balanceOf(address(this)) == 0,
             "Token cannot be changed, remove all previous balance of old token"
