@@ -738,10 +738,10 @@ interface IPolyLottoPriceUpdater {
     function updatePrice() external;
 
     /**
-     @notice update router to where token the liquidity is set
-     @param _dexName: Name of decentralised exchanged
-     @param _routerAddress: Router Address
-     @dev Callable by operator only!
+     * @notice update router supplying raffle with price of token
+     * @param _dexName: Name of Decentralised Exchange with liquidity pool
+     * @param _routerAddress: router address of that Exchange
+     * @dev Callable by operator only!
      */
     function setRouter(string memory _dexName, address _routerAddress) external;
 }
