@@ -44,6 +44,13 @@ interface IPolyLottoRaffle {
     function startRaffle() external;
 
     /**
+     * @notice updates the price of the tickets
+     * @param _amountOfTokenPerStable: Max no of token that can be gotten from one stable coin
+     * @dev Callable by price updater contract only!
+     */
+    function setTicketPrice(uint256 _amountOfTokenPerStable) external;
+
+    /**
      * @notice Buy tickets for the current lottery
      * @param _category: Raffle Category
      * @param _tickets: array of ticket numbers between 100,000 and 999,999
@@ -124,15 +131,6 @@ interface IPolyLottoRaffle {
      */
 
     function manualRefund(RaffleCategory _category) external;
-
-    /**
-     * @notice update router supplying raffle with price of token
-     * @param _dexName: Name of Decentralised Exchange with liquidity pool
-     * @param _routerAddress: router address of that Exchange
-     * @dev Callable by operator.
-     */
-    function updateRouter(string memory _dexName, address _routerAddress)
-        external;
 
     /**
      * @notice Inject funds

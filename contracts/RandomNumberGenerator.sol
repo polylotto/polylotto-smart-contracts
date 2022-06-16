@@ -882,7 +882,6 @@ F     * enters later, it overrides whatever randomness the used seed provides.
         fulfillRandomness(requestId, randomness);
     }
 }
-
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -926,6 +925,13 @@ interface IPolyLottoRaffle {
      */
 
     function startRaffle() external;
+
+    /**
+     * @notice updates the price of the tickets
+     * @param _amountOfTokenPerStable: Max no of token that can be gotten from one stable coin
+     * @dev Callable by price updater contract only!
+     */
+    function setTicketPrice(uint256 _amountOfTokenPerStable) external;
 
     /**
      * @notice Buy tickets for the current lottery
@@ -1010,15 +1016,6 @@ interface IPolyLottoRaffle {
     function manualRefund(RaffleCategory _category) external;
 
     /**
-     * @notice update router supplying raffle with price of token
-     * @param _dexName: Name of Decentralised Exchange with liquidity pool
-     * @param _routerAddress: router address of that Exchange
-     * @dev Callable by operator.
-     */
-    function updateRouter(string memory _dexName, address _routerAddress)
-        external;
-
-    /**
      * @notice Inject funds
      * @param _category: Raffle Cateogory
      * @param _amount: amount to inject in current Raffle Token
@@ -1075,6 +1072,7 @@ interface IPolyLottoRaffle {
      */
     function getRebootEndTime() external view returns (uint256);
 }
+
 // File: contracts/interfaces/IRandomNumberGenerator.sol
 
 pragma solidity ^0.8.4;
@@ -1092,7 +1090,7 @@ interface IRandomNumberGenerator {
     function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
         external
         view
-        returns (uint256);
+        returns (uint256[] memory);
 
     /**
      * View latest raffle Id numbers
@@ -1126,7 +1124,7 @@ contract RandomNumberGenerator is
         private noOfRandomRequests;
 
     //To keep track of different randomResults per request for each category
-    mapping(IPolyLottoRaffle.RaffleCategory => mapping(uint256 => uint256))
+    mapping(IPolyLottoRaffle.RaffleCategory => mapping(uint256 => uint256[]))
         private randomResults;
 
     modifier onlyKeeper() {
@@ -1235,9 +1233,38 @@ contract RandomNumberGenerator is
             latestRequestId
         ];
         noOfRandomRequests[_category]++;
-        randomResults[_category][noOfRandomRequests[_category]] = randomness;
+
+        randomResults[_category][noOfRandomRequests[_category]] = expand(
+            _category,
+            randomness
+        );
+
         latestRaffleId = IPolyLottoRaffle(polylottoRaffle).getRaffleID();
+
         IPolyLottoRaffle(polylottoRaffle).setRaffleAsDrawn(_category, true);
+    }
+
+    function expand(
+        IPolyLottoRaffle.RaffleCategory _category,
+        uint256 randomValue
+    ) internal view returns (uint256[] memory) {
+        uint256 noOfWinners = IPolyLottoRaffle(polylottoRaffle)
+            .getNoOfWinners();
+        uint256 raffleID = IPolyLottoRaffle(polylottoRaffle).getRaffleID();
+
+        IPolyLottoRaffle.RaffleStruct memory raffle = IPolyLottoRaffle(
+            polylottoRaffle
+        ).getRaffle(_category, raffleID);
+
+        uint256[] memory winningTicketsIDs = new uint256[](noOfWinners);
+
+        for (uint256 i = 0; i < noOfWinners; i++) {
+            winningTicketsIDs[i] =
+                (uint256(keccak256(abi.encode(randomValue, i))) %
+                    raffle.noOfTicketsSold) +
+                1;
+        }
+        return winningTicketsIDs;
     }
 
     /**
@@ -1247,7 +1274,7 @@ contract RandomNumberGenerator is
         external
         view
         override
-        returns (uint256)
+        returns (uint256[] memory)
     {
         return randomResults[_category][noOfRandomRequests[_category]];
     }

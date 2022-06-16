@@ -574,107 +574,6 @@ library SafeERC20 {
     }
 }
 
-// File: @chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol
-
-interface KeeperCompatibleInterface {
-    /**
-     * @notice method that is simulated by the keepers to see if any work actually
-     * needs to be performed. This method does does not actually need to be
-     * executable, and since it is only ever simulated it can consume lots of gas.
-     * @dev To ensure that it is never called, you may want to add the
-     * cannotExecute modifier from KeeperBase to your implementation of this
-     * method.
-     * @param checkData specified in the upkeep registration so it is always the
-     * same for a registered upkeep. This can easilly be broken down into specific
-     * arguments using `abi.decode`, so multiple upkeeps can be registered on the
-     * same contract and easily differentiated by the contract.
-     * @return upkeepNeeded boolean to indicate whether the keeper should call
-     * performUpkeep or not.
-     * @return performData bytes that the keeper should call performUpkeep with, if
-     * upkeep is needed. If you would like to encode data to decode later, try
-     * `abi.encode`.
-     */
-    function checkUpkeep(bytes calldata checkData)
-        external
-        returns (bool upkeepNeeded, bytes memory performData);
-
-    /**
-     * @notice method that is actually executed by the keepers, via the registry.
-     * The data returned by the checkUpkeep simulation will be passed into
-     * this method to actually be executed.
-     * @dev The input to this method should not be trusted, and the caller of the
-     * method should not even be restricted to any single registry. Anyone should
-     * be able call it, and the input should be validated, there is no guarantee
-     * that the data passed in is the performData returned from checkUpkeep. This
-     * could happen due to malicious keepers, racing keepers, or simply a state
-     * change while the performUpkeep transaction is waiting for confirmation.
-     * Always validate the data passed in.
-     * @param performData is the data which was passed back from the checkData
-     * simulation. If it is encoded, it can easily be decoded into other types by
-     * calling `abi.decode`. This data should not be trusted, and should be
-     * validated against the contract's current state.
-     */
-    function performUpkeep(bytes calldata performData) external;
-}
-
-// File: @chainlink/contracts/src/v0.8/KeeperBase.sol
-
-pragma solidity ^0.8.0;
-
-contract KeeperBase {
-    error OnlySimulatedBackend();
-
-    /**
-     * @notice method that allows it to be simulated via eth_call by checking that
-     * the sender is the zero address.
-     */
-    function preventExecution() internal view {
-        if (tx.origin != address(0)) {
-            revert OnlySimulatedBackend();
-        }
-    }
-
-    /**
-     * @notice modifier that allows it to be simulated via eth_call by checking
-     * that the sender is the zero address.
-     */
-    modifier cannotExecute() {
-        preventExecution();
-        _;
-    }
-}
-
-// File: @chainlink/contracts/src/v0.8/KeeperCompatible.sol
-
-pragma solidity ^0.8.0;
-
-abstract contract KeeperCompatible is KeeperBase, KeeperCompatibleInterface {}
-
-// File: contracts/interfaces/IRandomNumberGenerator.sol
-
-pragma solidity ^0.8.4;
-
-interface IRandomNumberGenerator {
-    /**
-     * Requests randomness from vrf
-     */
-    function getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
-        external;
-
-    /**
-     * Views random result
-     */
-    function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
-        external
-        view
-        returns (uint256);
-
-    /**
-     * View latest raffle Id numbers
-     */
-    function viewLatestRaffleId() external view returns (uint256);
-}
-
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -718,13 +617,6 @@ interface IPolyLottoRaffle {
      */
 
     function startRaffle() external;
-
-    /**
-     * @notice updates the price of the tickets
-     * @param _amountOfTokenPerStable: Max no of token that can be gotten from one stable coin
-     * @dev Callable by price updater contract only!
-     */
-    function setTicketPrice(uint256 _amountOfTokenPerStable) external;
 
     /**
      * @notice Buy tickets for the current lottery
@@ -809,6 +701,15 @@ interface IPolyLottoRaffle {
     function manualRefund(RaffleCategory _category) external;
 
     /**
+     * @notice update router supplying raffle with price of token
+     * @param _dexName: Name of Decentralised Exchange with liquidity pool
+     * @param _routerAddress: router address of that Exchange
+     * @dev Callable by operator.
+     */
+    function updateRouter(string memory _dexName, address _routerAddress)
+        external;
+
+    /**
      * @notice Inject funds
      * @param _category: Raffle Cateogory
      * @param _amount: amount to inject in current Raffle Token
@@ -866,155 +767,83 @@ interface IPolyLottoRaffle {
     function getRebootEndTime() external view returns (uint256);
 }
 
-//Keeper Contract
+// File: contracts/interfaces/IRandomNumberGenerator.sol
 
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.4;
 
-contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
+interface IRandomNumberGenerator {
+    /**
+     * Requests randomness from vrf
+     */
+    function getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
+        external;
+
+    /**
+     * Views random result
+     */
+    function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
+        external
+        view
+        returns (uint256);
+
+    /**
+     * View latest raffle Id numbers
+     */
+    function viewLatestRaffleId() external view returns (uint256);
+}
+
+pragma solidity ^0.8.4;
+
+contract Backup is Ownable {
     using SafeERC20 for IERC20;
-
     IPolyLottoRaffle public polyLotto;
     IRandomNumberGenerator public randomGenerator;
-    uint256 latestRaffleId;
+
+    address public operator;
+
+    modifier onlyOperator() {
+        require(operator == msg.sender, "Not Operator");
+        _;
+    }
 
     constructor(address _randomGeneratorAddress, address _polylottoAddress) {
         polyLotto = IPolyLottoRaffle(_polylottoAddress);
         randomGenerator = IRandomNumberGenerator(_randomGeneratorAddress);
     }
 
-    function checkUpkeep(
-        bytes calldata /* checkData */
-    )
+    function _getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
         external
-        view
-        override
-        returns (bool upkeepNeeded, bytes memory performData)
+        onlyOperator
     {
-        IPolyLottoRaffle.RaffleCategory[3] memory categoryArray = [
-            IPolyLottoRaffle.RaffleCategory.BASIC,
-            IPolyLottoRaffle.RaffleCategory.INVESTOR,
-            IPolyLottoRaffle.RaffleCategory.WHALE
-        ];
-
-        bool restart = false;
-
-        uint256 rebootChecker = polyLotto.getRebootChecker();
-
-        if (rebootChecker == 3) {
-            restart = true;
-        }
-
-        for (uint256 i = 0; i < categoryArray.length; i++) {
-            IPolyLottoRaffle.RaffleCategory _category = categoryArray[i];
-
-            uint256 raffleID = polyLotto.getRaffleID();
-
-            uint256 currentRaffleEndTime = polyLotto.getRaffleEndTime();
-            uint256 currentRaffleRebootEndTime = polyLotto.getRebootEndTime();
-
-            IPolyLottoRaffle.RaffleStruct memory _raffle = polyLotto.getRaffle(
-                _category,
-                raffleID
-            );
-
-            IPolyLottoRaffle.RaffleData memory _raffleData = polyLotto
-                .getRaffleData(_category);
-
-            bool hasMadeRequest = polyLotto.getRandomGenChecker(_category);
-
-            if (
-                (_raffleData.raffleState ==
-                    IPolyLottoRaffle.RaffleState.WAITING_FOR_REBOOT) && !restart
-            ) {
-                continue;
-            }
-
-            if (
-                ((block.timestamp > currentRaffleEndTime) &&
-                    (_raffleData.raffleState ==
-                        IPolyLottoRaffle.RaffleState.OPEN))
-            ) {
-                if (_raffle.noOfTicketsSold < 10 || _raffle.noOfPlayers < 5) {
-                    upkeepNeeded = true;
-                    performData = abi.encode(5, _category);
-                } else if (hasMadeRequest) {
-                    continue;
-                } else {
-                    upkeepNeeded = true;
-                    performData = abi.encode(1, _category);
-                }
-            } else if (
-                _raffleData.raffleState ==
-                IPolyLottoRaffle.RaffleState.TICKETS_DRAWN
-            ) {
-                upkeepNeeded = true;
-                performData = abi.encode(2, _category);
-            } else if (
-                _raffleData.raffleState == IPolyLottoRaffle.RaffleState.PAYOUT
-            ) {
-                upkeepNeeded = true;
-                performData = abi.encode(3, _category);
-            } else if (
-                !(_raffleData.raffleState ==
-                    IPolyLottoRaffle.RaffleState.DEACTIVATED) &&
-                (block.timestamp > currentRaffleRebootEndTime) &&
-                (restart)
-            ) {
-                upkeepNeeded = true;
-                performData = abi.encode(4, _category);
-            }
-        }
+        randomGenerator.getWinningTickets(_category);
     }
 
-    function performUpkeep(bytes calldata performData) external override {
-        (int256 comment, IPolyLottoRaffle.RaffleCategory _category) = abi
-            .decode(performData, (int256, IPolyLottoRaffle.RaffleCategory));
-        if (comment == 1) {
-            randomGenerator.getWinningTickets(_category);
-        } else if (comment == 2) {
-            polyLotto.getWinners(_category);
-        } else if (comment == 3) {
-            polyLotto.payoutWinners(_category);
-        } else if (comment == 4) {
-            polyLotto.startRaffle();
-        } else if (comment == 5) {
-            polyLotto.rollover(_category, false);
-        }
-    }
-
-    /**
-     * @notice It allows the admin to withdraw tokens sent to the contract
-     * @param _tokenAddress: the address of the token to withdraw
-     * @param _tokenAmount: the number of token amount to withdraw
-     * @dev Only callable by owner.
-     */
-    function withdrawTokens(address _tokenAddress, uint256 _tokenAmount)
+    function _getWinners(IPolyLottoRaffle.RaffleCategory _category)
         external
-        onlyOwner
+        onlyOperator
     {
-        IERC20(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
+        polyLotto.getWinners(_category);
     }
 
-    /**
-     * @notice Set the address for the PolyLottoKeeper
-     * @param _polylottoRaffle: address of the PancakeSwap lottery
-     */
-    function setPolylottoRaffle(address _polylottoRaffle) external onlyOwner {
-        polyLotto = IPolyLottoRaffle(_polylottoRaffle);
+    function _payoutWinners(IPolyLottoRaffle.RaffleCategory _category)
+        external
+        onlyOperator
+    {
+        polyLotto.payoutWinners(_category);
     }
 
-    /**
-     * @notice Set the address for the PolyLotto Raffle
-     * @param _randomGenAddress: address of the PolyLotto Raffle
-     */
-    function setRandomGenerator(address _randomGenAddress) external onlyOwner {
-        randomGenerator = IRandomNumberGenerator(_randomGenAddress);
+    function _startRaffle() external onlyOperator {
+        polyLotto.startRaffle();
     }
 
-    /**
-     * @notice View latestLotteryId
-     */
-    function viewLatestRaffleId() external view returns (uint256) {
-        return latestRaffleId;
+    function _rollover(IPolyLottoRaffle.RaffleCategory _category)
+        external
+        onlyOperator
+    {
+        polyLotto.rollover(_category, false);
+    }
+
+    function setOperator(address _operator) external onlyOwner {
+        operator = _operator;
     }
 }
