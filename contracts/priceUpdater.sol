@@ -610,7 +610,12 @@ contract PolyLottoPriceUpdater is Ownable, IPolyLottoPriceUpdater {
      * @notice Set the address for the PolyLotto Raffle
      * @param _polylottoAddress: address of the PolyLotto Raffle
      */
-    function setPolyLottoAddress(address _polylottoAddress) external onlyOwner {
+    function setPolyLottoAddress(address _polylottoAddress)
+        external
+        onlyOperator
+    {
+        require(_polylottoAddress != address(0), "Cannot be zero address");
+
         polyLottoRaffle = _polylottoAddress;
     }
 
@@ -642,8 +647,8 @@ contract PolyLottoPriceUpdater is Ownable, IPolyLottoPriceUpdater {
         DexRouter.routerAddress = IUniswapV2Router02(_routerAddress);
     }
 
-    //  * @dev Callable by operator.
-    //  */
-    // function updateRouter(string memory _dexName, address _routerAddress)
-    //     external;
+    function setOperator(address _operator) external onlyOwner {
+        require(_operator != address(0), "Cannot be zero address");
+        operatorAddress = _operator;
+    }
 }
