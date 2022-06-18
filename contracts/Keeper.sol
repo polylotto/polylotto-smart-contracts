@@ -667,7 +667,7 @@ interface IRandomNumberGenerator {
     function viewRandomResult(IPolyLottoRaffle.RaffleCategory _category)
         external
         view
-        returns (uint256);
+        returns (uint256[] memory);
 
     /**
      * View latest raffle Id numbers
@@ -876,6 +876,8 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
     IPolyLottoRaffle public polyLotto;
     IRandomNumberGenerator public randomGenerator;
     uint256 latestRaffleId;
+    uint256 vrfDelayTime = 5 minutes;
+    uint256 lastVrfRequest;
 
     constructor(address _randomGeneratorAddress, address _polylottoAddress) {
         polyLotto = IPolyLottoRaffle(_polylottoAddress);
@@ -937,7 +939,10 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
                 if (_raffle.noOfTicketsSold < 10 || _raffle.noOfPlayers < 5) {
                     upkeepNeeded = true;
                     performData = abi.encode(5, _category);
-                } else if (hasMadeRequest) {
+                } else if (
+                    hasMadeRequest ||
+                    block.timestamp < (lastVrfRequest + vrfDelayTime)
+                ) {
                     continue;
                 } else {
                     upkeepNeeded = true;
@@ -971,6 +976,7 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
             .decode(performData, (int256, IPolyLottoRaffle.RaffleCategory));
         if (comment == 1) {
             randomGenerator.getWinningTickets(_category);
+            lastVrfRequest = block.timestamp;
         } else if (comment == 2) {
             polyLotto.getWinners(_category);
         } else if (comment == 3) {
