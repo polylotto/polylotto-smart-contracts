@@ -10,6 +10,8 @@ PolyLotto Random Generator Contract: [link](https://mumbai.polygonscan.com/addre
 
 PolyLotto PriceUpdater Contract: [link](https://mumbai.polygonscan.com/address/0xc257cfdbd804bab74d7d5b78aa6dac45d6470dee#code)
 
+PolyLotto Faucet Contract: [link](https://mumbai.polygonscan.com/address/0x0438A0893B38fc6fae79DaB21A09b14d96bE1115#code)
+
 Try running some of the following tasks:
 
 ```shell
