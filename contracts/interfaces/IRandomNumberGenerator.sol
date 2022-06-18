@@ -9,6 +9,14 @@ interface IRandomNumberGenerator {
     function getWinningTickets(uint8 _category) external;
 
     /**
+     * Views random result
+     */
+    function viewRandomResult(uint8 _category)
+        external
+        view
+        returns (uint256[] memory);
+
+    /**
      * View latest raffle Id numbers
      */
     function viewLatestRaffleId() external view returns (uint256);

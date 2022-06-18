@@ -780,6 +780,7 @@ interface IPolyLottoRaffle {
     struct RaffleData {
         uint256 ticketPrice;
         uint256 rafflePool;
+        uint256 rolloverPool;
         RaffleState raffleState;
     }
 
@@ -1562,7 +1563,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     }
 
     function _rollover(RaffleCategory _category, bool _deactivated) internal {
-        RaffleStruct storage _raffle = raffles[_category][raffleID];
+        RaffleStruct memory _raffle = raffles[_category][raffleID];
+        RaffleData storage _raffleData = rafflesData[_category];
         if (!_deactivated) {
             setRaffleState(_category, RaffleState.WAITING_FOR_REBOOT);
             rebootChecker++;
@@ -1580,6 +1582,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             rolloverTickets[_category].push(
                 ticketsRecord[_category][_thisTicketID]
             );
+            _raffleData.rafflePool -= _raffleData.ticketPrice;
+            _raffleData.rolloverPool += _raffleData.ticketPrice;
         }
     }
 
@@ -1619,6 +1623,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             rafflesData[_category].raffleState == RaffleState.OPEN,
             "Raffle not open"
         );
+        RaffleData storage _raffleData = rafflesData[_category];
         uint256[] memory ticketIDs = rollovers[_category][msg.sender];
         uint32[] memory ticketsToRollover = new uint32[](ticketIDs.length);
         uint256 noOfTicketsToRollover;
@@ -1648,10 +1653,14 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             noOfTicketsToRollover++;
 
             _ticket.toRollover = false;
+
+            _raffleData.rafflePool += _raffleData.ticketPrice;
+            _raffleData.rolloverPool -= _raffleData.ticketPrice;
         }
 
         if (noOfTicketsToRollover > 0) {
             storeUserTransactions(_category, noOfTicketsToRollover, true);
+
             emit RolloverClaimed(
                 _category,
                 raffleID,
@@ -1659,11 +1668,6 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 ticketsToRollover
             );
         }
-        //initialise empty array
-        uint256[] memory empty;
-
-        //overwrite mapping
-        rollovers[_category][msg.sender] = empty;
     }
 
     function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount)
@@ -1745,7 +1749,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         hasRollovers(_category)
         nonReentrant
     {
-        RaffleData memory _raffleData = rafflesData[_category];
+        RaffleData storage _raffleData = rafflesData[_category];
 
         uint256 noOfTicketsToRefund;
 
@@ -1763,6 +1767,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             noOfTicketsToRefund++;
 
             _ticket.toRollover = false;
+            _raffleData.rolloverPool -= _raffleData.ticketPrice;
         }
 
         if (noOfTicketsToRefund > 0) {
@@ -1814,8 +1819,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 continue;
             }
             raffleToken.safeTransfer(_ticket.owner, _data.ticketPrice);
-            _data.rafflePool -= _data.ticketPrice;
             _ticket.toRollover = false;
+            _data.rolloverPool -= _data.ticketPrice;
         }
     }
 

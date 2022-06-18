@@ -33,6 +33,7 @@ interface IPolyLottoRaffle {
     struct RaffleData {
         uint256 ticketPrice;
         uint256 rafflePool;
+        uint256 rolloverPool;
         RaffleState raffleState;
     }
 
