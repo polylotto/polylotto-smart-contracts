@@ -1060,7 +1060,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     }
 
     modifier raffleNotValid(RaffleCategory _category) {
-        RaffleStruct storage _raffle = raffles[_category][raffleID];
+        RaffleStruct memory _raffle = raffles[_category][raffleID];
         require(
             _raffle.noOfTicketsSold < 10 || _raffle.noOfPlayers < 5,
             "Sorry can not deactivate a valid raffle"
@@ -1069,7 +1069,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     }
 
     modifier isRaffleDeactivated(RaffleCategory _category) {
-        RaffleData storage _raffleData = rafflesData[_category];
+        RaffleData memory _raffleData = rafflesData[_category];
         require(
             _raffleData.raffleState == RaffleState.DEACTIVATED,
             "Sorry can activate as raffle is not deactivated"
@@ -1770,12 +1770,6 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             raffleToken.safeTransfer(msg.sender, amount);
             emit WithdrawalComplete(raffleID, amount);
         }
-
-        //initialise empty array
-        uint256[] memory empty;
-
-        //overwrite mapping
-        rollovers[_category][msg.sender] = empty;
     }
 
     // Function to change the contract address of the token.
