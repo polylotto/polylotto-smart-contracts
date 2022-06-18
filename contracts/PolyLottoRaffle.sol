@@ -1668,6 +1668,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 ticketsToRollover
             );
         }
+        updateWinnersPayouts(_category);
     }
 
     function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount)
