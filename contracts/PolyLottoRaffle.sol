@@ -1103,6 +1103,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         RaffleCategory raffleCategory,
         uint256 noOfTickets
     );
+    event TicketRollovered(
+        RaffleCategory raffleCategory,
+        uint256 indexed raffleId,
+        uint256 noOfTicketsRollovered,
+        uint256 rolloverPool
+    );
     event RolloverClaimed(
         RaffleCategory raffleCategory,
         uint256 indexed raffleId,
@@ -1585,6 +1591,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             _raffleData.rafflePool -= _raffleData.ticketPrice;
             _raffleData.rolloverPool += _raffleData.ticketPrice;
         }
+        emit TicketRollovered(
+            _category,
+            raffleID,
+            _raffle.noOfTicketsSold,
+            _raffleData.rolloverPool
+        );
     }
 
     function viewUserRollovers(RaffleCategory _category, address _user)
