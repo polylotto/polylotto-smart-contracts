@@ -1330,9 +1330,9 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         _transaction.noOfTickets = _noOfTickets;
 
         if (_fromRollovers) {
-            _transaction.description = "Rollover";
+            _transaction.description = "Ticket Rollover";
         } else {
-            _transaction.description = "Purchase";
+            _transaction.description = "Ticket Purchase";
         }
 
         userTransactionHistory[msg.sender].push(_transaction);
@@ -1786,7 +1786,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
         require(
             _checkForRollovers() == 0,
-            "Token cannot be changed, users still have rollovers to claim"
+            "Token cannot be changed, users still have rollovers to calim, initiate a refund"
         );
 
         IPolyLottoPriceUpdater(priceUpdater).updatePolyLottoToken(
@@ -1874,6 +1874,15 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     // 1 Winner -- 25%
     // 2 Winner -- 15%
     // 3 Winner -- 10%
+
+    // let signer = ethersProvider.getSigner();
+    // let contract = new ethers.Contract(address, abi, signer.connectUnchecked());
+    // let tx = await contract.method();
+
+    // // this will return immediately with tx.hash and tx.wait property
+
+    // console.log("Transaction hash is ", tx.hash);
+    // let receipt = await tx.wait();
 
     //Odds of Winning is increased by the number of tickets a person buys, but it does not guarantee winning,
     // as the randomness is generated randomly using the chainlink vrf and not with any existing variable in the contract
