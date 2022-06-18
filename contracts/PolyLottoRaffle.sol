@@ -1467,7 +1467,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         //Send half of remaining to Treasury
         uint256 amountToTreasury = (_raffleData.rafflePool) / 2;
 
-        raffleToken.safeTransfer(treasuryAddress, (amountToTreasury / 2));
+        raffleToken.safeTransfer(treasuryAddress, amountToTreasury);
 
         _raffleData.rafflePool -= amountToTreasury;
 
@@ -1789,10 +1789,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         hasUpdatedToPolyLottoToken
     {
         require(_newTokenAddress != address(0), "Cannot be zero address");
+
         require(
-            raffleToken.balanceOf(address(this)) == 0,
-            "Token cannot be changed, remove all previous balance of old token"
+            _checkForRollovers() == 0,
+            "Token cannot be changed, users still have rollovers to claim"
         );
+
         IPolyLottoPriceUpdater(priceUpdater).updatePolyLottoToken(
             _newTokenAddress
         );
@@ -1818,8 +1820,37 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 continue;
             }
             raffleToken.safeTransfer(_ticket.owner, _data.ticketPrice);
+            _data.rafflePool -= _data.ticketPrice;
             _ticket.toRollover = false;
         }
+    }
+
+    function _checkForRollovers() internal view returns (uint256) {
+        RaffleCategory[3] memory categoryArray = [
+            IPolyLottoRaffle.RaffleCategory.BASIC,
+            IPolyLottoRaffle.RaffleCategory.INVESTOR,
+            IPolyLottoRaffle.RaffleCategory.WHALE
+        ];
+
+        uint256 pendingRollovers;
+
+        for (uint256 i = 0; i < categoryArray.length; i++) {
+            RaffleCategory _category = categoryArray[i];
+
+            Ticket[] memory _rolloverTickets = rolloverTickets[_category];
+
+            for (uint256 n; n < _rolloverTickets.length; n++) {
+                Ticket memory _ticket = _rolloverTickets[n];
+
+                if (!_ticket.toRollover) {
+                    continue;
+                }
+
+                pendingRollovers++;
+            }
+        }
+
+        return pendingRollovers;
     }
 
     /**
@@ -1849,15 +1880,6 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     // 1 Winner -- 25%
     // 2 Winner -- 15%
     // 3 Winner -- 10%
-
-    // let signer = ethersProvider.getSigner();
-    // let contract = new ethers.Contract(address, abi, signer.connectUnchecked());
-    // let tx = await contract.method();
-
-    // // this will return immediately with tx.hash and tx.wait property
-
-    // console.log("Transaction hash is ", tx.hash);
-    // let receipt = await tx.wait();
 
     //Odds of Winning is increased by the number of tickets a person buys, but it does not guarantee winning,
     // as the randomness is generated randomly using the chainlink vrf and not with any existing variable in the contract
