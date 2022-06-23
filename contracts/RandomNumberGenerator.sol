@@ -882,6 +882,7 @@ F     * enters later, it overrides whatever randomness the used seed provides.
         fulfillRandomness(requestId, randomness);
     }
 }
+
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -916,7 +917,6 @@ interface IPolyLottoRaffle {
     struct RaffleData {
         uint256 ticketPrice;
         uint256 rafflePool;
-        uint256 rolloverPool;
         RaffleState raffleState;
     }
 
@@ -976,13 +976,6 @@ interface IPolyLottoRaffle {
     function rollover(RaffleCategory _category, bool _deactivated) external;
 
     /**
-     * @notice Claim Rollover, move ticket spots to next raffle after initial raffle where tickets were bought was deactivated or rendered invalid
-     * @param _category: Raffle Category
-     * @dev Callable by users only, not contract
-     */
-    function claimRollover(RaffleCategory _category) external;
-
-    /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
      * @dev Callable by operator
      */
@@ -995,26 +988,11 @@ interface IPolyLottoRaffle {
     function reactivateRaffle() external;
 
     /**
-     * @notice Withdraw funds from raffle, if raffle has been deactivated
-     * @param _category: Raffle Category
-     * @dev Callable by users only, not contract!
-     */
-    function withdrawFundsDueToDeactivation(RaffleCategory _category) external;
-
-    /**
      * @notice Updates Raffle Token, for tickets purchase, refunds old tokens balance to users with rollover
      * @param _newTokenAddress: new Token Address
      * @dev Callable by operator, and can be only called once.
      */
     function updateRaffleToken(address _newTokenAddress) external;
-
-    /**
-     * @notice Send backs token balances to users with rollovers.
-     * @param _category: Raffle Category
-     * @dev Callable by operator, and to be used when raffleToken is to be updated
-     */
-
-    function manualRefund(RaffleCategory _category) external;
 
     /**
      * @notice Inject funds
