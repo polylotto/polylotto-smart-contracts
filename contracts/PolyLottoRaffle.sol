@@ -1070,7 +1070,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         uint256 txIndex,
         uint256 timestamp,
         RaffleCategory raffleCategory,
-        uint256 noOfTickets
+        uint256 noOfTickets,
+        string description
     );
     event TicketsRollovered(
         RaffleCategory raffleCategory,
@@ -1320,7 +1321,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             txIndex,
             block.timestamp,
             _category,
-            _noOfTickets
+            _noOfTickets,
+            _transaction.description
         );
     }
 
