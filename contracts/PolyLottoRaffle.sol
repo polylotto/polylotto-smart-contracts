@@ -1599,7 +1599,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         }
     }
 
-    function manualRefund(RaffleCategory _category) internal onlyOperator {
+    function manualRefund(RaffleCategory _category) internal {
         RaffleStruct memory _raffle = raffles[_category][raffleID];
         RaffleData storage _raffleData = rafflesData[_category];
         if (_raffle.noOfTicketsSold < 0) {
