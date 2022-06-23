@@ -833,10 +833,9 @@ interface IPolyLottoRaffle {
     /**
      * @notice rollovers user tickets, whenever a raffle is not valid
      * @param _category: Raffle Category
-     * @param _deactivated: bool to show if function was called via deactivation
      * @dev Callable by keepers contracts
      */
-    function rollover(RaffleCategory _category, bool _deactivated) external;
+    function rollover(RaffleCategory _category) external;
 
     /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
@@ -1533,16 +1532,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         emit LotteryInjection(_category, raffleID, _amount);
     }
 
-    function rollover(RaffleCategory _category, bool _deactivated)
+    function rollover(RaffleCategory _category)
         external
         override
         onlyPolylottoKeeper
     {
         RaffleStruct memory _raffle = raffles[_category][raffleID];
-        if (!_deactivated) {
-            setRaffleState(_category, RaffleState.WAITING_FOR_REBOOT);
-            rebootChecker++;
-        }
         if (_raffle.noOfTicketsSold < 0) {
             return;
         }
@@ -1557,6 +1552,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 ticketsRecord[_category][_thisTicketID]
             );
         }
+        setRaffleState(_category, RaffleState.WAITING_FOR_REBOOT);
+        rebootChecker++;
 
         emit TicketsRollovered(_category, raffleID, _raffle.noOfTicketsSold);
     }

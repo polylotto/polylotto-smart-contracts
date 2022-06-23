@@ -970,10 +970,9 @@ interface IPolyLottoRaffle {
     /**
      * @notice rollovers user tickets, whenever a raffle is not valid
      * @param _category: Raffle Category
-     * @param _deactivated: bool to show if function was called via deactivation
      * @dev Callable by keepers contracts
      */
-    function rollover(RaffleCategory _category, bool _deactivated) external;
+    function rollover(RaffleCategory _category) external;
 
     /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
