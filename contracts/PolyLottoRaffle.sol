@@ -979,6 +979,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     //Mapping to keep track of Rollover tickets
     mapping(RaffleCategory => Ticket[]) private rolloverTickets;
 
+    //Mapping to track users with rollovers per raffleID
+    mapping(RaffleCategory => mapping(uint256 => address[]))
+        private rolloverUsers;
+
     //Users Transaction History
     mapping(address => Transaction[]) private userTransactionHistory;
 
@@ -1547,6 +1551,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         for (uint256 i = 1; i <= _raffle.noOfTicketsSold; i++) {
             uint256 _thisTicketID = noOfTicketsBeforeThisRaffle + i;
             ticketsRecord[_category][_thisTicketID].toRollover = true;
+            address user = ticketsRecord[_category][_thisTicketID].owner;
+            rolloverUsers[_category][raffleID].push(user);
             rolloverTickets[_category].push(
                 ticketsRecord[_category][_thisTicketID]
             );
@@ -1557,12 +1563,19 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
     function transferRollovers(RaffleCategory _category) internal {
         Ticket[] storage _rolloverTickets = rolloverTickets[_category];
+        uint256 previousRaffleID = raffleID - 1;
+        address[] memory _rolloverUsers = rolloverUsers[_category][
+            previousRaffleID
+        ];
         for (uint256 n; n < _rolloverTickets.length; n++) {
             Ticket storage _ticket = _rolloverTickets[n];
 
             if (!_ticket.toRollover) {
                 continue;
             }
+
+            _ticket.toRollover = false;
+
             currentTicketID[_category]++;
 
             userTicketsPerRaffle[_ticket.owner][_category][raffleID].push(
@@ -1574,6 +1587,15 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 owner: _ticket.owner,
                 toRollover: false
             });
+        }
+
+        for (uint256 i; i < _rolloverUsers.length; i++) {
+            address _user = _rolloverUsers[i];
+            uint256 _noOfTickets = userTicketsPerRaffle[_user][_category][
+                previousRaffleID
+            ].length;
+
+            storeUserTransactions(_category, _noOfTickets, true, _user);
         }
     }
 
