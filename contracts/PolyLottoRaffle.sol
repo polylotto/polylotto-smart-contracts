@@ -1718,6 +1718,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
 
         raffles[_category][raffleID].amountInjected += _amount;
+        rafflesData[_category].rafflePool += _amount;
 
         emit LotteryInjection(_category, raffleID, _amount);
     }
