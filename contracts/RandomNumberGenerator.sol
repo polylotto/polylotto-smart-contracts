@@ -882,6 +882,7 @@ F     * enters later, it overrides whatever randomness the used seed provides.
         fulfillRandomness(requestId, randomness);
     }
 }
+
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -916,7 +917,6 @@ interface IPolyLottoRaffle {
     struct RaffleData {
         uint256 ticketPrice;
         uint256 rafflePool;
-        uint256 rolloverPool;
         RaffleState raffleState;
     }
 
@@ -970,17 +970,9 @@ interface IPolyLottoRaffle {
     /**
      * @notice rollovers user tickets, whenever a raffle is not valid
      * @param _category: Raffle Category
-     * @param _deactivated: bool to show if function was called via deactivation
      * @dev Callable by keepers contracts
      */
-    function rollover(RaffleCategory _category, bool _deactivated) external;
-
-    /**
-     * @notice Claim Rollover, move ticket spots to next raffle after initial raffle where tickets were bought was deactivated or rendered invalid
-     * @param _category: Raffle Category
-     * @dev Callable by users only, not contract
-     */
-    function claimRollover(RaffleCategory _category) external;
+    function rollover(RaffleCategory _category) external;
 
     /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
@@ -995,26 +987,11 @@ interface IPolyLottoRaffle {
     function reactivateRaffle() external;
 
     /**
-     * @notice Withdraw funds from raffle, if raffle has been deactivated
-     * @param _category: Raffle Category
-     * @dev Callable by users only, not contract!
-     */
-    function withdrawFundsDueToDeactivation(RaffleCategory _category) external;
-
-    /**
      * @notice Updates Raffle Token, for tickets purchase, refunds old tokens balance to users with rollover
      * @param _newTokenAddress: new Token Address
      * @dev Callable by operator, and can be only called once.
      */
     function updateRaffleToken(address _newTokenAddress) external;
-
-    /**
-     * @notice Send backs token balances to users with rollovers.
-     * @param _category: Raffle Category
-     * @dev Callable by operator, and to be used when raffleToken is to be updated
-     */
-
-    function manualRefund(RaffleCategory _category) external;
 
     /**
      * @notice Inject funds
@@ -1141,14 +1118,10 @@ contract RandomNumberGenerator is
      * @param _vrfCoordinator: address of the VRF coordinator
      * @param _linkToken: address of the LINK token
      */
-    constructor(
-        address _vrfCoordinator,
-        address _linkToken,
-        uint256 _fee,
-        bytes32 _keyhash
-    ) VRFConsumerBase(_vrfCoordinator, _linkToken) {
-        fee = _fee;
-        keyHash = _keyhash;
+    constructor(address _vrfCoordinator, address _linkToken)
+        VRFConsumerBase(_vrfCoordinator, _linkToken)
+    {
+        //
     }
 
     /**

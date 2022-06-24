@@ -42,7 +42,7 @@ async function main() {
   //Deploy Random Generator
   console.log("Getting Generator Contract.....")
   const RandomGen = await hre.ethers.getContractFactory("RandomNumberGenerator");
-  const randomGen = await RandomGen.deploy(vrfCoordinator, linkToken, fee, keyhash);
+  const randomGen = await RandomGen.deploy(vrfCoordinator, linkToken);
   console.log("Deploying...");
   await randomGen.deployed();
   console.log("Generator deployed to: ", randomGen.address);
@@ -64,7 +64,7 @@ async function main() {
   const priceUpdater = await PriceUpdater.deploy(TokenAddress, StableTokenAddress, StableTokenName);
   console.log("Deploying.....");
   await priceUpdater.deployed();
-  console.log("Keeper deployed to: ", priceUpdater.address)
+  console.log("{Price Updater deployed to: ", priceUpdater.address)
 }
 
   //npx hardhat verify --network mumbai_testnet
