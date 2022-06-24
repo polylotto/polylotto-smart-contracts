@@ -982,6 +982,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     mapping(RaffleCategory => mapping(uint256 => address[]))
         private rolloverUsers;
 
+    mapping(address => bool) internal userRolloverStatus;
+
     //Users Transaction History
     mapping(address => Transaction[]) private userTransactionHistory;
 
@@ -1156,9 +1158,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             _raffle.raffleStartTime = currentRaffleStartTime;
             _raffle.raffleEndTime = currentRaffleEndTime;
 
-            if (_checkForRollovers() != 0) {
+            uint256 noOfTicketToRollover = _checkForRollovers(_category);
+            if (noOfTicketToRollover != 0) {
                 transferRollovers(_category);
+                _raffle.noOfTicketsSold += noOfTicketToRollover;
             }
+
             setRaffleState(_category, RaffleState.OPEN);
             updateWinnersPayouts(_category);
             randomGenChecker[_category] = false;
@@ -1462,98 +1467,30 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
     }
 
-    /**
-     * @notice Set operator, treasury, and injector addresses
-     * @dev Only callable by owner
-     * @param _operatorAddress: address of the operator
-     * @param _treasuryAddress: address of the treasury
-     * @param _injectorAddress: address of the injector
-     */
-    function setOperatorAndTreasuryAndInjectorAddresses(
-        address _operatorAddress,
-        address _treasuryAddress,
-        address _injectorAddress
-    ) external onlyOwner {
-        require(_operatorAddress != address(0), "Cannot be zero address");
-        require(_treasuryAddress != address(0), "Cannot be zero address");
-        require(_injectorAddress != address(0), "Cannot be zero address");
-
-        operatorAddress = _operatorAddress;
-        treasuryAddress = _treasuryAddress;
-        injectorAddress = _injectorAddress;
-
-        emit NewOperatorAndTreasuryAndInjectorAddresses(
-            _operatorAddress,
-            _treasuryAddress,
-            _injectorAddress
-        );
-    }
-
-    /**
-     * @notice Set keeper address
-     * @dev Only callable by operator
-     * @param _keeperAddress: address of the keeper
-     * @param _randomGenerator: address of the randomGenerator
-     */
-    function setKeeperAndRandomGeneratorAddress(
-        address _keeperAddress,
-        address _randomGenerator
-    ) external onlyOperator {
-        require(_keeperAddress != address(0), "Cannot be zero address");
-        require(_randomGenerator != address(0), "Cannot be zero address");
-        polylottoKeeper = _keeperAddress;
-        randomGenerator = _randomGenerator;
-    }
-
-    function setPriceUpdaterAddress(address _priceUpdater)
-        external
-        onlyOperator
-    {
-        require(_priceUpdater != address(0), "Cannot be zero address");
-        priceUpdater = _priceUpdater;
-    }
-
-    function injectFunds(RaffleCategory _category, uint256 _amount)
-        external
-        override
-        onlyOwnerOrInjector
-    {
-        require(
-            rafflesData[_category].raffleState == RaffleState.OPEN,
-            "Raffle not open"
-        );
-
-        raffleToken.safeTransferFrom(
-            address(msg.sender),
-            address(this),
-            _amount
-        );
-
-        raffles[_category][raffleID].amountInjected += _amount;
-
-        emit LotteryInjection(_category, raffleID, _amount);
-    }
-
     function rollover(RaffleCategory _category)
         external
         override
         onlyPolylottoKeeper
     {
         RaffleStruct memory _raffle = raffles[_category][raffleID];
-        if (_raffle.noOfTicketsSold < 0) {
-            return;
+
+        if (_raffle.noOfTicketsSold > 0) {
+            uint256 noOfTicketsBeforeThisRaffle = currentTicketID[_category] -
+                _raffle.noOfTicketsSold;
+            for (uint256 i = 1; i <= _raffle.noOfTicketsSold; i++) {
+                uint256 _thisTicketID = noOfTicketsBeforeThisRaffle + i;
+                ticketsRecord[_category][_thisTicketID].toRollover = true;
+                address user = ticketsRecord[_category][_thisTicketID].owner;
+                if (!userRolloverStatus[user]) {
+                    rolloverUsers[_category][raffleID].push(user);
+                    userRolloverStatus[user] = true;
+                }
+                rolloverTickets[_category].push(
+                    ticketsRecord[_category][_thisTicketID]
+                );
+            }
         }
-        uint256 noOfTicketsBeforeThisRaffle = currentTicketID[_category] -
-            _raffle.noOfTicketsSold;
-        for (uint256 i = 1; i <= _raffle.noOfTicketsSold; i++) {
-            uint256 _thisTicketID = noOfTicketsBeforeThisRaffle + i;
-            ticketsRecord[_category][_thisTicketID].toRollover = true;
-            address user = ticketsRecord[_category][_thisTicketID].owner;
-            rolloverUsers[_category][raffleID].push(user);
-            rolloverTickets[_category].push(
-                ticketsRecord[_category][_thisTicketID]
-            );
-        }
+
         setRaffleState(_category, RaffleState.WAITING_FOR_REBOOT);
         rebootChecker++;
 
@@ -1590,6 +1527,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
         for (uint256 i; i < _rolloverUsers.length; i++) {
             address _user = _rolloverUsers[i];
+            userRolloverStatus[_user] = false;
             uint256 _noOfTickets = userTicketsPerRaffle[_user][_category][
                 previousRaffleID
             ].length;
@@ -1614,29 +1552,23 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         }
     }
 
-    function _checkForRollovers() internal view returns (uint256) {
-        RaffleCategory[3] memory categoryArray = [
-            IPolyLottoRaffle.RaffleCategory.BASIC,
-            IPolyLottoRaffle.RaffleCategory.INVESTOR,
-            IPolyLottoRaffle.RaffleCategory.WHALE
-        ];
-
+    function _checkForRollovers(RaffleCategory _category)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 pendingRollovers;
 
-        for (uint256 i = 0; i < categoryArray.length; i++) {
-            RaffleCategory _category = categoryArray[i];
+        Ticket[] memory _rolloverTickets = rolloverTickets[_category];
 
-            Ticket[] memory _rolloverTickets = rolloverTickets[_category];
+        for (uint256 n; n < _rolloverTickets.length; n++) {
+            Ticket memory _ticket = _rolloverTickets[n];
 
-            for (uint256 n; n < _rolloverTickets.length; n++) {
-                Ticket memory _ticket = _rolloverTickets[n];
-
-                if (!_ticket.toRollover) {
-                    continue;
-                }
-
-                pendingRollovers++;
+            if (!_ticket.toRollover) {
+                continue;
             }
+
+            pendingRollovers++;
         }
 
         return pendingRollovers;
@@ -1710,17 +1642,84 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     {
         require(_newTokenAddress != address(0), "Cannot be zero address");
 
-        require(
-            _checkForRollovers() == 0,
-            "Token cannot be changed, users still have rollovers to calim, initiate a refund"
-        );
-
         IPolyLottoPriceUpdater(priceUpdater).updatePolyLottoToken(
             _newTokenAddress
         );
         raffleToken = IERC20(_newTokenAddress);
 
         usingPolyLottoToken = true;
+    }
+
+    /**
+     * @notice Set operator, treasury, and injector addresses
+     * @dev Only callable by owner
+     * @param _operatorAddress: address of the operator
+     * @param _treasuryAddress: address of the treasury
+     * @param _injectorAddress: address of the injector
+     */
+    function setOperatorAndTreasuryAndInjectorAddresses(
+        address _operatorAddress,
+        address _treasuryAddress,
+        address _injectorAddress
+    ) external onlyOwner {
+        require(_operatorAddress != address(0), "Cannot be zero address");
+        require(_treasuryAddress != address(0), "Cannot be zero address");
+        require(_injectorAddress != address(0), "Cannot be zero address");
+
+        operatorAddress = _operatorAddress;
+        treasuryAddress = _treasuryAddress;
+        injectorAddress = _injectorAddress;
+
+        emit NewOperatorAndTreasuryAndInjectorAddresses(
+            _operatorAddress,
+            _treasuryAddress,
+            _injectorAddress
+        );
+    }
+
+    /**
+     * @notice Set keeper address
+     * @dev Only callable by operator
+     * @param _keeperAddress: address of the keeper
+     * @param _randomGenerator: address of the randomGenerator
+     */
+    function setKeeperAndRandomGeneratorAddress(
+        address _keeperAddress,
+        address _randomGenerator
+    ) external onlyOperator {
+        require(_keeperAddress != address(0), "Cannot be zero address");
+        require(_randomGenerator != address(0), "Cannot be zero address");
+        polylottoKeeper = _keeperAddress;
+        randomGenerator = _randomGenerator;
+    }
+
+    function setPriceUpdaterAddress(address _priceUpdater)
+        external
+        onlyOperator
+    {
+        require(_priceUpdater != address(0), "Cannot be zero address");
+        priceUpdater = _priceUpdater;
+    }
+
+    function injectFunds(RaffleCategory _category, uint256 _amount)
+        external
+        override
+        onlyOwnerOrInjector
+    {
+        require(
+            rafflesData[_category].raffleState == RaffleState.OPEN,
+            "Raffle not open"
+        );
+
+        raffleToken.safeTransferFrom(
+            address(msg.sender),
+            address(this),
+            _amount
+        );
+
+        raffles[_category][raffleID].amountInjected += _amount;
+
+        emit LotteryInjection(_category, raffleID, _amount);
     }
 
     function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount)
