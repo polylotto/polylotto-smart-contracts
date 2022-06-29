@@ -674,6 +674,7 @@ interface IRandomNumberGenerator {
      */
     function viewLatestRaffleId() external view returns (uint256);
 }
+
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -766,6 +767,13 @@ interface IPolyLottoRaffle {
     function rollover(RaffleCategory _category) external;
 
     /**
+     * @notice transfer rollovers to new raffle
+     * @param _category: Raffle Category
+     * @dev Callable by keepers contracts
+     */
+    function transferRollovers(RaffleCategory _category) external;
+
+    /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
      * @dev Callable by operator
      */
@@ -832,6 +840,14 @@ interface IPolyLottoRaffle {
         returns (bool);
 
     /**
+     * @notice returns the number of rollovers active in a raffle category
+     */
+    function checkForRollovers(RaffleCategory _category)
+        external
+        view
+        returns (uint256);
+
+    /**
      * @notice returns the raffle end time
      */
     function getRaffleEndTime() external view returns (uint256);
@@ -878,17 +894,17 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
 
         uint256 rebootChecker = polyLotto.getRebootChecker();
 
+        uint256 raffleID = polyLotto.getRaffleID();
+
+        uint256 currentRaffleEndTime = polyLotto.getRaffleEndTime();
+        uint256 currentRaffleRebootEndTime = polyLotto.getRebootEndTime();
+
         if (rebootChecker == 3) {
             restart = true;
         }
 
         for (uint256 i = 0; i < categoryArray.length; i++) {
             IPolyLottoRaffle.RaffleCategory _category = categoryArray[i];
-
-            uint256 raffleID = polyLotto.getRaffleID();
-
-            uint256 currentRaffleEndTime = polyLotto.getRaffleEndTime();
-            uint256 currentRaffleRebootEndTime = polyLotto.getRebootEndTime();
 
             IPolyLottoRaffle.RaffleStruct memory _raffle = polyLotto.getRaffle(
                 _category,
@@ -900,6 +916,8 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
 
             bool hasMadeRequest = polyLotto.getRandomGenChecker(_category);
 
+            uint256 rollovers = polyLotto.checkForRollovers(_category);
+
             if (
                 (_raffleData.raffleState ==
                     IPolyLottoRaffle.RaffleState.WAITING_FOR_REBOOT) && !restart
@@ -908,6 +926,11 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
             }
 
             if (
+                (_raffleData.raffleState ==
+                    IPolyLottoRaffle.RaffleState.OPEN) && (rollovers != 0)
+            ) {
+                performData = abi.encode(6, _category);
+            } else if (
                 ((block.timestamp > currentRaffleEndTime) &&
                     (_raffleData.raffleState ==
                         IPolyLottoRaffle.RaffleState.OPEN))
@@ -961,6 +984,8 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
             polyLotto.startRaffle();
         } else if (comment == 5) {
             polyLotto.rollover(_category);
+        } else if (comment == 6) {
+            polyLotto.transferRollovers(_category);
         }
     }
 

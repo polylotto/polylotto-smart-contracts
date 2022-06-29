@@ -838,6 +838,13 @@ interface IPolyLottoRaffle {
     function rollover(RaffleCategory _category) external;
 
     /**
+     * @notice transfer rollovers to new raffle
+     * @param _category: Raffle Category
+     * @dev Callable by keepers contracts
+     */
+    function transferRollovers(RaffleCategory _category) external;
+
+    /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
      * @dev Callable by operator
      */
@@ -904,6 +911,14 @@ interface IPolyLottoRaffle {
         returns (bool);
 
     /**
+     * @notice returns the number of rollovers active in a raffle category
+     */
+    function checkForRollovers(RaffleCategory _category)
+        external
+        view
+        returns (uint256);
+
+    /**
      * @notice returns the raffle end time
      */
     function getRaffleEndTime() external view returns (uint256);
@@ -927,8 +942,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
     uint256 internal raffleID;
 
-    uint256 internal immutable raffleInterval = 2 * 1 hours;
-    uint256 internal immutable resetInterval = 30 * 1 minutes;
+    uint256 internal immutable raffleInterval = 20 * 1 minutes;
+    uint256 internal immutable resetInterval = 20 * 1 minutes;
 
     bytes32 internal keyHash;
 
@@ -1157,12 +1172,6 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             _raffle.ID = raffleID;
             _raffle.raffleStartTime = currentRaffleStartTime;
             _raffle.raffleEndTime = currentRaffleEndTime;
-
-            uint256 noOfTicketToRollover = _checkForRollovers(_category);
-            if (noOfTicketToRollover != 0) {
-                transferRollovers(_category);
-                _raffle.noOfTicketsSold += noOfTicketToRollover;
-            }
 
             setRaffleState(_category, RaffleState.OPEN);
             updateWinnersPayouts(_category);
@@ -1497,8 +1506,13 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         emit TicketsRollovered(_category, raffleID, _raffle.noOfTicketsSold);
     }
 
-    function transferRollovers(RaffleCategory _category) internal {
+    function transferRollovers(RaffleCategory _category)
+        external
+        override
+        onlyPolylottoKeeper
+    {
         Ticket[] storage _rolloverTickets = rolloverTickets[_category];
+        RaffleStruct storage _raffle = raffles[_category][raffleID];
         uint256 previousRaffleID = raffleID - 1;
         address[] memory _rolloverUsers = rolloverUsers[_category][
             previousRaffleID
@@ -1523,15 +1537,19 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
                 owner: _ticket.owner,
                 toRollover: false
             });
-        }
+            _raffle.noOfTicketsSold++;
 
-        for (uint256 i; i < _rolloverUsers.length; i++) {
-            address _user = _rolloverUsers[i];
+            //rolloverUsers can never be more than the tickets
+            if (n > _rolloverUsers.length) {
+                continue;
+            }
+
+            address _user = _rolloverUsers[n];
             userRolloverStatus[_user] = false;
             uint256 _noOfTickets = userTicketsPerRaffle[_user][_category][
                 previousRaffleID
             ].length;
-
+            _raffle.noOfPlayers++;
             storeUserTransactions(_category, _noOfTickets, true, _user);
         }
     }
@@ -1546,15 +1564,17 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             _raffle.noOfTicketsSold;
         for (uint256 i = 1; i <= _raffle.noOfTicketsSold; i++) {
             uint256 _thisTicketID = noOfTicketsBeforeThisRaffle + i;
+            ticketsRecord[_category][_thisTicketID].toRollover = false;
             address player = ticketsRecord[_category][_thisTicketID].owner;
             raffleToken.safeTransfer(player, _raffleData.ticketPrice);
             _raffleData.rafflePool -= _raffleData.ticketPrice;
         }
     }
 
-    function _checkForRollovers(RaffleCategory _category)
-        internal
+    function checkForRollovers(RaffleCategory _category)
+        external
         view
+        override
         returns (uint256)
     {
         uint256 pendingRollovers;
