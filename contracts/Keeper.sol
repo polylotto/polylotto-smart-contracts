@@ -704,6 +704,7 @@ interface IPolyLottoRaffle {
         uint256[] winningTickets; // Contains array of winning Tickets
         uint256 raffleStartTime;
         uint256 raffleEndTime;
+        bool rollover;
     }
 
     struct RaffleData {
@@ -765,13 +766,6 @@ interface IPolyLottoRaffle {
      * @dev Callable by keepers contracts
      */
     function rollover(RaffleCategory _category) external;
-
-    /**
-     * @notice transfer rollovers to new raffle
-     * @param _category: Raffle Category
-     * @dev Callable by keepers contracts
-     */
-    function transferRollovers(RaffleCategory _category) external;
 
     /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
@@ -838,14 +832,6 @@ interface IPolyLottoRaffle {
         external
         view
         returns (bool);
-
-    /**
-     * @notice returns the number of rollovers active in a raffle category
-     */
-    function checkForRollovers(RaffleCategory _category)
-        external
-        view
-        returns (uint256);
 
     /**
      * @notice returns the raffle end time
@@ -916,8 +902,6 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
 
             bool hasMadeRequest = polyLotto.getRandomGenChecker(_category);
 
-            uint256 rollovers = polyLotto.checkForRollovers(_category);
-
             if (
                 (_raffleData.raffleState ==
                     IPolyLottoRaffle.RaffleState.WAITING_FOR_REBOOT) && !restart
@@ -926,11 +910,6 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
             }
 
             if (
-                (_raffleData.raffleState ==
-                    IPolyLottoRaffle.RaffleState.OPEN) && (rollovers != 0)
-            ) {
-                performData = abi.encode(6, _category);
-            } else if (
                 ((block.timestamp > currentRaffleEndTime) &&
                     (_raffleData.raffleState ==
                         IPolyLottoRaffle.RaffleState.OPEN))
@@ -984,8 +963,6 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
             polyLotto.startRaffle();
         } else if (comment == 5) {
             polyLotto.rollover(_category);
-        } else if (comment == 6) {
-            polyLotto.transferRollovers(_category);
         }
     }
 

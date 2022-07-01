@@ -775,6 +775,7 @@ interface IPolyLottoRaffle {
         uint256[] winningTickets; // Contains array of winning Tickets
         uint256 raffleStartTime;
         uint256 raffleEndTime;
+        bool rollover;
     }
 
     struct RaffleData {
@@ -836,13 +837,6 @@ interface IPolyLottoRaffle {
      * @dev Callable by keepers contracts
      */
     function rollover(RaffleCategory _category) external;
-
-    /**
-     * @notice transfer rollovers to new raffle
-     * @param _category: Raffle Category
-     * @dev Callable by keepers contracts
-     */
-    function transferRollovers(RaffleCategory _category) external;
 
     /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
@@ -911,14 +905,6 @@ interface IPolyLottoRaffle {
         returns (bool);
 
     /**
-     * @notice returns the number of rollovers active in a raffle category
-     */
-    function checkForRollovers(RaffleCategory _category)
-        external
-        view
-        returns (uint256);
-
-    /**
      * @notice returns the raffle end time
      */
     function getRaffleEndTime() external view returns (uint256);
@@ -942,8 +928,8 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
     uint256 internal raffleID;
 
-    uint256 internal immutable raffleInterval = 20 * 1 minutes;
-    uint256 internal immutable resetInterval = 20 * 1 minutes;
+    uint256 internal immutable raffleInterval = 1 * 1 hours;
+    uint256 internal immutable resetInterval = 30 * 1 minutes;
 
     bytes32 internal keyHash;
 
@@ -974,7 +960,6 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     struct Ticket {
         uint32 ticketNumber;
         address owner;
-        bool toRollover;
     }
 
     //Maps Total ticket Record for raffle
@@ -990,14 +975,9 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     //Map General Raffle Data
     mapping(RaffleCategory => RaffleData) private rafflesData;
 
-    //Mapping to keep track of Rollover tickets
-    mapping(RaffleCategory => Ticket[]) private rolloverTickets;
-
     //Mapping to track users with rollovers per raffleID
     mapping(RaffleCategory => mapping(uint256 => address[]))
         private rolloverUsers;
-
-    mapping(address => bool) internal userRolloverStatus;
 
     //Users Transaction History
     mapping(address => Transaction[]) private userTransactionHistory;
@@ -1086,6 +1066,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     event NewUserTransaction(
         uint256 txIndex,
         uint256 timestamp,
+        address user,
         RaffleCategory raffleCategory,
         uint256 noOfTickets,
         string description
@@ -1169,10 +1150,15 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         for (uint256 i = 0; i < categoryArray.length; i++) {
             RaffleCategory _category = categoryArray[i];
             RaffleStruct storage _raffle = raffles[_category][raffleID];
+            uint256 prevRaffleID = raffleID - 1;
+            RaffleStruct memory _prevRaffle = raffles[_category][prevRaffleID];
             _raffle.ID = raffleID;
             _raffle.raffleStartTime = currentRaffleStartTime;
             _raffle.raffleEndTime = currentRaffleEndTime;
-
+            if (_prevRaffle.rollover) {
+                _raffle.noOfPlayers = _prevRaffle.noOfPlayers;
+                _raffle.noOfTicketsSold = _prevRaffle.noOfTicketsSold;
+            }
             setRaffleState(_category, RaffleState.OPEN);
             updateWinnersPayouts(_category);
             randomGenChecker[_category] = false;
@@ -1334,6 +1320,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         emit NewUserTransaction(
             txIndex,
             block.timestamp,
+            _user,
             _category,
             _noOfTickets,
             _transaction.description
@@ -1354,8 +1341,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
             ticketsRecord[_category][currentTicketID[_category]] = Ticket({
                 ticketNumber: thisTicketNumber,
-                owner: msg.sender,
-                toRollover: false
+                owner: msg.sender
             });
         }
         _raffle.noOfTicketsSold += _tickets.length;
@@ -1481,22 +1467,30 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         override
         onlyPolylottoKeeper
     {
-        RaffleStruct memory _raffle = raffles[_category][raffleID];
+        RaffleStruct storage _raffle = raffles[_category][raffleID];
+        uint256 nextRaffle = raffleID + 1;
+
+        _raffle.rollover = true;
 
         if (_raffle.noOfTicketsSold > 0) {
             uint256 noOfTicketsBeforeThisRaffle = currentTicketID[_category] -
                 _raffle.noOfTicketsSold;
+
             for (uint256 i = 1; i <= _raffle.noOfTicketsSold; i++) {
                 uint256 _thisTicketID = noOfTicketsBeforeThisRaffle + i;
-                ticketsRecord[_category][_thisTicketID].toRollover = true;
-                address user = ticketsRecord[_category][_thisTicketID].owner;
-                if (!userRolloverStatus[user]) {
-                    rolloverUsers[_category][raffleID].push(user);
-                    userRolloverStatus[user] = true;
-                }
-                rolloverTickets[_category].push(
-                    ticketsRecord[_category][_thisTicketID]
-                );
+
+                Ticket memory _ticket = ticketsRecord[_category][_thisTicketID];
+
+                userTicketsPerRaffle[_ticket.owner][_category][nextRaffle].push(
+                        _ticket.ticketNumber
+                    );
+
+                currentTicketID[_category]++;
+
+                ticketsRecord[_category][currentTicketID[_category]] = Ticket({
+                    ticketNumber: _ticket.ticketNumber,
+                    owner: _ticket.owner
+                });
             }
         }
 
@@ -1504,54 +1498,6 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         rebootChecker++;
 
         emit TicketsRollovered(_category, raffleID, _raffle.noOfTicketsSold);
-    }
-
-    function transferRollovers(RaffleCategory _category)
-        external
-        override
-        onlyPolylottoKeeper
-    {
-        Ticket[] storage _rolloverTickets = rolloverTickets[_category];
-        RaffleStruct storage _raffle = raffles[_category][raffleID];
-        uint256 previousRaffleID = raffleID - 1;
-        address[] memory _rolloverUsers = rolloverUsers[_category][
-            previousRaffleID
-        ];
-        for (uint256 n; n < _rolloverTickets.length; n++) {
-            Ticket storage _ticket = _rolloverTickets[n];
-
-            if (!_ticket.toRollover) {
-                continue;
-            }
-
-            _ticket.toRollover = false;
-
-            currentTicketID[_category]++;
-
-            userTicketsPerRaffle[_ticket.owner][_category][raffleID].push(
-                _ticket.ticketNumber
-            );
-
-            ticketsRecord[_category][currentTicketID[_category]] = Ticket({
-                ticketNumber: _ticket.ticketNumber,
-                owner: _ticket.owner,
-                toRollover: false
-            });
-            _raffle.noOfTicketsSold++;
-
-            //rolloverUsers can never be more than the tickets
-            if (n > _rolloverUsers.length) {
-                continue;
-            }
-
-            address _user = _rolloverUsers[n];
-            userRolloverStatus[_user] = false;
-            uint256 _noOfTickets = userTicketsPerRaffle[_user][_category][
-                previousRaffleID
-            ].length;
-            _raffle.noOfPlayers++;
-            storeUserTransactions(_category, _noOfTickets, true, _user);
-        }
     }
 
     function manualRefund(RaffleCategory _category) internal {
@@ -1564,34 +1510,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             _raffle.noOfTicketsSold;
         for (uint256 i = 1; i <= _raffle.noOfTicketsSold; i++) {
             uint256 _thisTicketID = noOfTicketsBeforeThisRaffle + i;
-            ticketsRecord[_category][_thisTicketID].toRollover = false;
             address player = ticketsRecord[_category][_thisTicketID].owner;
             raffleToken.safeTransfer(player, _raffleData.ticketPrice);
             _raffleData.rafflePool -= _raffleData.ticketPrice;
         }
-    }
-
-    function checkForRollovers(RaffleCategory _category)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        uint256 pendingRollovers;
-
-        Ticket[] memory _rolloverTickets = rolloverTickets[_category];
-
-        for (uint256 n; n < _rolloverTickets.length; n++) {
-            Ticket memory _ticket = _rolloverTickets[n];
-
-            if (!_ticket.toRollover) {
-                continue;
-            }
-
-            pendingRollovers++;
-        }
-
-        return pendingRollovers;
     }
 
     function deactivateRaffle()

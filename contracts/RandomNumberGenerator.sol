@@ -912,6 +912,7 @@ interface IPolyLottoRaffle {
         uint256[] winningTickets; // Contains array of winning Tickets
         uint256 raffleStartTime;
         uint256 raffleEndTime;
+        bool rollover;
     }
 
     struct RaffleData {
@@ -973,13 +974,6 @@ interface IPolyLottoRaffle {
      * @dev Callable by keepers contracts
      */
     function rollover(RaffleCategory _category) external;
-
-    /**
-     * @notice transfer rollovers to new raffle
-     * @param _category: Raffle Category
-     * @dev Callable by keepers contracts
-     */
-    function transferRollovers(RaffleCategory _category) external;
 
     /**
      * @notice Deactivates Raffle, can only be called if raffle is not valid
@@ -1046,14 +1040,6 @@ interface IPolyLottoRaffle {
         external
         view
         returns (bool);
-
-    /**
-     * @notice returns the number of rollovers active in a raffle category
-     */
-    function checkForRollovers(RaffleCategory _category)
-        external
-        view
-        returns (uint256);
 
     /**
      * @notice returns the raffle end time
