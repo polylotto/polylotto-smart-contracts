@@ -928,14 +928,14 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
 
     uint256 internal raffleID;
 
-    uint256 internal immutable raffleInterval = 1 * 1 hours;
+    uint256 internal immutable raffleInterval = 12 * 1 hours;
     uint256 internal immutable resetInterval = 30 * 1 minutes;
 
     bytes32 internal keyHash;
 
     uint256 internal rebootChecker;
 
-    uint256 public noOfWinners;
+    uint256 public noOfWinners = 3;
     uint256 public maxNumberTicketsPerBuy = 1000;
 
     address public injectorAddress;
@@ -1116,16 +1116,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     event WithdrawalComplete(uint256 raffleID, uint256 amount);
 
     // Initializing the contract
-    constructor(
-        address _raffleToken,
-        uint256 _amountOfTokenPerStable,
-        uint256 _noOfWinners
-    ) {
+    constructor(address _raffleToken, uint256 _amountOfTokenPerStable) {
         rebootChecker = 3;
         raffleToken = IERC20(_raffleToken);
         _setTicketPrice(_amountOfTokenPerStable);
         usingPolyLottoToken = false;
-        noOfWinners = _noOfWinners;
     }
 
     // Function to be called by the chainlink keepers that start the raffle
@@ -1467,6 +1462,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         override
         onlyPolylottoKeeper
     {
+        require(
+            rafflesData[_category].raffleState == RaffleState.OPEN,
+            "Invalid action"
+        );
         RaffleStruct storage _raffle = raffles[_category][raffleID];
         uint256 nextRaffle = raffleID + 1;
 
