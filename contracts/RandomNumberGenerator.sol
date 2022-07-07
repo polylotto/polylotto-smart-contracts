@@ -1126,12 +1126,13 @@ contract RandomNumberGenerator is
 
     /**
      * @notice Request randomness from a user-provided seed
-     * @param _category: seed provided by the PancakeSwap lottery
+     * @param _category: raffle category
      */
 
     function getWinningTickets(IPolyLottoRaffle.RaffleCategory _category)
         external
         override
+        onlyKeeper
     {
         require(keyHash != bytes32(0), "Must have valid key hash");
         require(
@@ -1161,7 +1162,7 @@ contract RandomNumberGenerator is
 
     /**
      * @notice Set the address for the PolyLottoKeeper
-     * @param _polylottoKeeper: address of the PancakeSwap lottery
+     * @param _polylottoKeeper: address of the PolyLotto lottery
      */
     function setKeeperAddress(address _polylottoKeeper) external onlyOwner {
         polylottoKeeper = _polylottoKeeper;
