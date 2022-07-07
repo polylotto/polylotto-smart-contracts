@@ -674,6 +674,7 @@ interface IRandomNumberGenerator {
      */
     function viewLatestRaffleId() external view returns (uint256);
 }
+
 // File: contracts/interfaces/IPolyLottoRaffle.sol
 pragma solidity ^0.8.4;
 
@@ -703,6 +704,7 @@ interface IPolyLottoRaffle {
         uint256[] winningTickets; // Contains array of winning Tickets
         uint256 raffleStartTime;
         uint256 raffleEndTime;
+        bool rollover;
     }
 
     struct RaffleData {
@@ -715,7 +717,6 @@ interface IPolyLottoRaffle {
      * @notice Start raffle
      * @dev only callable by keeper address
      */
-
     function startRaffle() external;
 
     /**
@@ -735,18 +736,17 @@ interface IPolyLottoRaffle {
         external;
 
     /**
-     * @notice gets the Winners of the current Raffle
+     * @notice Gets the Winners of the current Raffle
      * @param _category: Raffle Category
      * @dev Callable by keepers contract
      */
     function getWinners(RaffleCategory _category) external;
 
     /**
-     * @notice sets the raffle state to tickets drawn
+     * @notice Sets the raffle state to tickets drawn
      * @param _category: Raffle Category
      * @param _drawCompleted: boolean to tell contract when draw has finis
-     * @dev Callable by randomGenerator contract 
-    
+     * @dev Callable by randomGenerator contract
      */
     function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
         external;
@@ -759,7 +759,7 @@ interface IPolyLottoRaffle {
     function payoutWinners(RaffleCategory _category) external;
 
     /**
-     * @notice rollovers user tickets, whenever a raffle is not valid
+     * @notice Rolls over user tickets, whenever a raffle is not valid
      * @param _category: Raffle Category
      * @dev Callable by keepers contracts
      */
@@ -778,7 +778,7 @@ interface IPolyLottoRaffle {
     function reactivateRaffle() external;
 
     /**
-     * @notice Updates Raffle Token, for tickets purchase, refunds old tokens balance to users with rollover
+     * @notice  Changes the contract address of Raffle Token.
      * @param _newTokenAddress: new Token Address
      * @dev Callable by operator, and can be only called once.
      */
@@ -825,6 +825,7 @@ interface IPolyLottoRaffle {
 
     /**
      * @notice returns param that shows if a random request has been made in a raffle category
+     * @param _category: raffle category
      */
     function getRandomGenChecker(RaffleCategory _category)
         external
@@ -878,17 +879,17 @@ contract PolylottoKeeper is KeeperCompatibleInterface, Ownable {
 
         uint256 rebootChecker = polyLotto.getRebootChecker();
 
+        uint256 raffleID = polyLotto.getRaffleID();
+
+        uint256 currentRaffleEndTime = polyLotto.getRaffleEndTime();
+        uint256 currentRaffleRebootEndTime = polyLotto.getRebootEndTime();
+
         if (rebootChecker == 3) {
             restart = true;
         }
 
         for (uint256 i = 0; i < categoryArray.length; i++) {
             IPolyLottoRaffle.RaffleCategory _category = categoryArray[i];
-
-            uint256 raffleID = polyLotto.getRaffleID();
-
-            uint256 currentRaffleEndTime = polyLotto.getRaffleEndTime();
-            uint256 currentRaffleRebootEndTime = polyLotto.getRebootEndTime();
 
             IPolyLottoRaffle.RaffleStruct memory _raffle = polyLotto.getRaffle(
                 _category,
