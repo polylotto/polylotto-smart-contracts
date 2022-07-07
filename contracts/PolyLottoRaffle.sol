@@ -788,7 +788,6 @@ interface IPolyLottoRaffle {
      * @notice Start raffle
      * @dev only callable by keeper address
      */
-
     function startRaffle() external;
 
     /**
@@ -808,18 +807,17 @@ interface IPolyLottoRaffle {
         external;
 
     /**
-     * @notice gets the Winners of the current Raffle
+     * @notice Gets the Winners of the current Raffle
      * @param _category: Raffle Category
      * @dev Callable by keepers contract
      */
     function getWinners(RaffleCategory _category) external;
 
     /**
-     * @notice sets the raffle state to tickets drawn
+     * @notice Sets the raffle state to tickets drawn
      * @param _category: Raffle Category
      * @param _drawCompleted: boolean to tell contract when draw has finis
-     * @dev Callable by randomGenerator contract 
-    
+     * @dev Callable by randomGenerator contract
      */
     function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
         external;
@@ -832,7 +830,7 @@ interface IPolyLottoRaffle {
     function payoutWinners(RaffleCategory _category) external;
 
     /**
-     * @notice rollovers user tickets, whenever a raffle is not valid
+     * @notice Rolls over user tickets, whenever a raffle is not valid
      * @param _category: Raffle Category
      * @dev Callable by keepers contracts
      */
@@ -851,7 +849,7 @@ interface IPolyLottoRaffle {
     function reactivateRaffle() external;
 
     /**
-     * @notice Updates Raffle Token, for tickets purchase, refunds old tokens balance to users with rollover
+     * @notice  Changes the contract address of Raffle Token.
      * @param _newTokenAddress: new Token Address
      * @dev Callable by operator, and can be only called once.
      */
@@ -898,6 +896,7 @@ interface IPolyLottoRaffle {
 
     /**
      * @notice returns param that shows if a random request has been made in a raffle category
+     * @param _category: raffle category
      */
     function getRandomGenChecker(RaffleCategory _category)
         external
@@ -1115,7 +1114,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     );
     event WithdrawalComplete(uint256 raffleID, uint256 amount);
 
-    // Initializing the contract
+    /**
+     * @notice Constructor
+     * @dev RandomNumberGenerator, Keeper Address and PriceUpdater must be deployed prior to this contract
+     * @param _raffleToken: address of the CAKE token
+     * @param _amountOfTokenPerStable: address of the RandomGenerator contract used to work with ChainLink VRF
+     */
     constructor(address _raffleToken, uint256 _amountOfTokenPerStable) {
         rebootChecker = 3;
         raffleToken = IERC20(_raffleToken);
@@ -1123,7 +1127,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         usingPolyLottoToken = false;
     }
 
-    // Function to be called by the chainlink keepers that start the raffle
+    /**
+     * @notice Start raffle
+     * @dev only callable by keeper address
+     */
     function startRaffle() external override onlyPolylottoKeeper stateCheck {
         //initiating raffle
         raffleID++;
@@ -1167,6 +1174,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
     }
 
+    /**
+     * @notice updates the price of the tickets
+     * @param _amountOfTokenPerStable: Max no of token that can be gotten from one stable coin
+     * @dev Callable by price updater contract only!
+     */
     function setTicketPrice(uint256 _amountOfTokenPerStable)
         external
         override
@@ -1175,7 +1187,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         _setTicketPrice(_amountOfTokenPerStable);
     }
 
-    // This function sets the raffle ticket Price
+    /**
+     * @notice Sets the raffle ticket price
+     * @param _amountOfTokenPerStable: amount of token per stable currency
+     */
     function _setTicketPrice(uint256 _amountOfTokenPerStable) internal {
         rafflesData[RaffleCategory.BASIC].ticketPrice = _amountOfTokenPerStable;
         rafflesData[RaffleCategory.INVESTOR].ticketPrice =
@@ -1186,25 +1201,41 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
             _amountOfTokenPerStable;
     }
 
-    // To help monitor the flow of the contract, this function allows the contract to change the state of each raffle
+    /**
+     * @notice Updates the state of the raffle
+     * @param _category: raffle category
+     * @param _state: raffle state
+     */
     function setRaffleState(RaffleCategory _category, RaffleState _state)
         internal
     {
         rafflesData[_category].raffleState = _state;
     }
 
+    /**
+     * @notice returns the raffle end time
+     */
     function getRebootEndTime() external view override returns (uint256) {
         return (currentRaffleRebootEndTime);
     }
 
+    /**
+     * @notice returns the reboot end time
+     */
     function getRaffleEndTime() external view override returns (uint256) {
         return (currentRaffleEndTime);
     }
 
+    /**
+     * @notice View current raffle id
+     */
     function getRaffleID() external view override returns (uint256) {
         return raffleID;
     }
 
+    /**
+     * @notice View general raffle information
+     */
     function getRaffleData(RaffleCategory _category)
         external
         view
@@ -1214,6 +1245,9 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return rafflesData[_category];
     }
 
+    /**
+     * @notice View Raffle Information
+     */
     function getRaffle(RaffleCategory _category, uint256 _raffleID)
         external
         view
@@ -1223,14 +1257,24 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return raffles[_category][_raffleID];
     }
 
+    /**
+     * @notice get number of winners
+     */
     function getNoOfWinners() external view override returns (uint256) {
         return noOfWinners;
     }
 
+    /**
+     * @notice returns param that shows that all raffle categories are in sync
+     */
     function getRebootChecker() external view override returns (uint256) {
         return rebootChecker;
     }
 
+    /**
+     * @notice returns param that shows if a random request has been made in a raffle category
+     * @param _category: raffle category
+     */
     function getRandomGenChecker(RaffleCategory _category)
         external
         view
@@ -1240,6 +1284,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return randomGenChecker[_category];
     }
 
+    /**
+     * @notice View user ticket ids for a given lottery
+     * @param _category: raffle category
+     * @param _user: user address
+     * @param _raffleID: lottery id
+     */
     function viewUserTickets(
         RaffleCategory _category,
         address _user,
@@ -1248,6 +1298,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return userTicketsPerRaffle[_user][_category][_raffleID];
     }
 
+    /**
+     * @notice Buy tickets for the current lottery
+     * @param _category: Raffle Category
+     * @param _tickets: array of ticket numbers between 100,000 and 999,999
+     * @dev Callable by users only, not contract!
+     */
     function buyTickets(RaffleCategory _category, uint32[] calldata _tickets)
         external
         override
@@ -1277,7 +1333,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         }
 
         _raffleData.rafflePool += amountToTransfer;
-        storeUserTransactions(_category, _tickets.length, false, _msgSender());
+        storeUserTransactions(_category, _tickets.length);
         assignTickets(_category, _tickets);
         updateWinnersPayouts(_category);
 
@@ -1290,38 +1346,41 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
     }
 
+    /**
+     * @notice Assigns the tickets to users
+     * @param _category: Raffle Category
+     * @param _noOfTickets:
+     */
     function storeUserTransactions(
         RaffleCategory _category,
-        uint256 _noOfTickets,
-        bool _fromRollover,
-        address _user
+        uint256 _noOfTickets
     ) internal {
-        uint256 txIndex = userTransactionHistory[_user].length;
+        uint256 txIndex = userTransactionHistory[msg.sender].length;
 
         Transaction memory _transaction;
         _transaction.txID = txIndex;
         _transaction.time = block.timestamp;
         _transaction.raffleCategory = _category;
         _transaction.noOfTickets = _noOfTickets;
+        _transaction.description = "Ticket Purchase";
 
-        if (_fromRollover) {
-            _transaction.description = "Tickets Rollovered";
-        } else {
-            _transaction.description = "Ticket Purchase";
-        }
-
-        userTransactionHistory[_user].push(_transaction);
+        userTransactionHistory[msg.sender].push(_transaction);
 
         emit NewUserTransaction(
             txIndex,
             block.timestamp,
-            _user,
+            msg.sender,
             _category,
             _noOfTickets,
             _transaction.description
         );
     }
 
+    /**
+     * @notice Assigns the tickets to users
+     * @param _category: Raffle Category
+     * @param _tickets: Tickets
+     */
     function assignTickets(RaffleCategory _category, uint32[] memory _tickets)
         internal
     {
@@ -1342,6 +1401,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         _raffle.noOfTicketsSold += _tickets.length;
     }
 
+    /**
+     * @notice Update payout amount
+     * @param _category: Raffle Category
+     */
     function updateWinnersPayouts(RaffleCategory _category) internal {
         RaffleStruct storage _raffle = raffles[_category][raffleID];
         uint256 _rafflePool = rafflesData[_category].rafflePool;
@@ -1351,6 +1414,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         _raffle.winnersPayout = [_25percent, _15percent, _10percent];
     }
 
+    /**
+     * @notice View user transaction history count
+     * @param _user: user address
+     */
     function getUserTransactionCount(address _user)
         external
         view
@@ -1359,6 +1426,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return userTransactionHistory[_user].length;
     }
 
+    /**
+     * @notice View user transaction history
+     * @param _user: user address
+     * @param _txIndex: transaction index
+     */
     function getuserTransactionHistory(address _user, uint256 _txIndex)
         external
         view
@@ -1367,6 +1439,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         return userTransactionHistory[_user][_txIndex];
     }
 
+    /**
+     * @notice Sets the raffle state to tickets drawn
+     * @param _category: Raffle Category
+     * @param _drawCompleted: boolean to tell contract when draw has finis
+     * @dev Callable by randomGenerator contract
+     */
     function setRaffleAsDrawn(RaffleCategory _category, bool _drawCompleted)
         external
         override
@@ -1378,6 +1456,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         randomGenChecker[_category] = true;
     }
 
+    /**
+     * @notice Gets the Winners of the current Raffle
+     * @param _category: Raffle Category
+     * @dev Callable by keepers contract
+     */
     function getWinners(RaffleCategory _category)
         external
         override
@@ -1385,7 +1468,7 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     {
         require(
             rafflesData[_category].raffleState == RaffleState.TICKETS_DRAWN,
-            "Invalid action"
+            "Tickets not yet drawn"
         );
         RaffleStruct storage _raffle = raffles[_category][raffleID];
 
@@ -1418,6 +1501,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         emit RaffleEnded(_category, raffleID, RaffleState.PAYOUT);
     }
 
+    /**
+     * @notice Sends out winnings to the Raffle Winners
+     * @param _category: Raffle Category
+     * @dev Callable by keepers contract
+     */
     function payoutWinners(RaffleCategory _category)
         external
         override
@@ -1457,6 +1545,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
     }
 
+    /**
+     * @notice Rolls over user tickets, whenever a raffle is not valid
+     * @param _category: Raffle Category
+     * @dev Callable by keepers contracts
+     */
     function rollover(RaffleCategory _category)
         external
         override
@@ -1499,6 +1592,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         emit TicketsRollovered(_category, raffleID, _raffle.noOfTicketsSold);
     }
 
+    /**
+     * @notice Initiates a manual refund to players in raffle session
+     * @param _category: Raffle category
+     * @dev Callable by operator
+     */
     function manualRefund(RaffleCategory _category) internal {
         RaffleStruct memory _raffle = raffles[_category][raffleID];
         RaffleData storage _raffleData = rafflesData[_category];
@@ -1515,6 +1613,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         }
     }
 
+    /**
+     * @notice Deactivates Raffle, can only be called if raffle is not valid
+     * @dev Callable by operator
+     */
     function deactivateRaffle()
         external
         override
@@ -1545,6 +1647,10 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
     }
 
+    /**
+     * @notice Activates Raffle, can only be called if raffle has been deactivated
+     * @dev Callable by operator
+     */
     function reactivateRaffle()
         external
         override
@@ -1571,7 +1677,11 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         );
     }
 
-    // Function to change the contract address of the token.
+    /**
+     * @notice Changes the contract address of Raffle Token.
+     * @param _newTokenAddress: new Token Address
+     * @dev Callable by operator, and can be only called once.
+     */
     function updateRaffleToken(address _newTokenAddress)
         external
         override
@@ -1619,29 +1729,31 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Set keeper address
+     * @notice Set keeper, random generator and price updater addresses
      * @dev Only callable by operator
      * @param _keeperAddress: address of the keeper
      * @param _randomGenerator: address of the randomGenerator
+     * @param _priceUpdater: address of the priceUpdater
      */
-    function setKeeperAndRandomGeneratorAddress(
+    function setKeeperAndRandomGeneratorAndPriceUpdaterAddress(
         address _keeperAddress,
-        address _randomGenerator
+        address _randomGenerator,
+        address _priceUpdater
     ) external onlyOperator {
         require(_keeperAddress != address(0), "Cannot be zero address");
         require(_randomGenerator != address(0), "Cannot be zero address");
+        require(_priceUpdater != address(0), "Cannot be zero address");
+        priceUpdater = _priceUpdater;
         polylottoKeeper = _keeperAddress;
         randomGenerator = _randomGenerator;
     }
 
-    function setPriceUpdaterAddress(address _priceUpdater)
-        external
-        onlyOperator
-    {
-        require(_priceUpdater != address(0), "Cannot be zero address");
-        priceUpdater = _priceUpdater;
-    }
-
+    /**
+     * @notice Inject funds
+     * @param _category: Raffle Category
+     * @param _amount: amount token of token to inject in raffle
+     * @dev Callable by operator
+     */
     function injectFunds(RaffleCategory _category, uint256 _amount)
         external
         override
@@ -1664,6 +1776,12 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         emit LotteryInjection(_category, raffleID, _amount);
     }
 
+    /**
+     * @notice It allows the admin to recover wrong tokens sent to the contract
+     * @param _tokenAddress: the address of the token to withdraw
+     * @param _tokenAmount: the number of token amount to withdraw
+     * @dev Only callable by owner.
+     */
     function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount)
         external
         onlyOperator
@@ -1690,44 +1808,4 @@ contract PolylottoRaffle is IPolyLottoRaffle, ReentrancyGuard, Ownable {
         }
         return size > 0;
     }
-
-    //Contract Parameters
-    // Create three Raffle categories
-    // Basic category -- $1
-    // Investor category -- $10
-    // Whale category -- $100
-
-    // Duration -- Every 2 days
-    // For testnet every 3 hour
-    // For testnet payout happens every 1 hour
-
-    // Payouts -- Automatically
-    // Contract gets -- 50%
-    // 1 Winner -- 25%
-    // 2 Winner -- 15%
-    // 3 Winner -- 10%
-
-    // let signer = ethersProvider.getSigner();
-    // let contract = new ethers.Contract(address, abi, signer.connectUnchecked());
-    // let tx = await contract.method();
-
-    // // this will return immediately with tx.hash and tx.wait property
-
-    // console.log("Transaction hash is ", tx.hash);
-    // let receipt = await tx.wait();
-
-    //Odds of Winning is increased by the number of tickets a person buys, but it does not guarantee winning,
-    // as the randomness is generated randomly using the chainlink vrf and not with any existing variable in the contract
-
-    // Users are given indexes for each tixcket bought, a mapping to store the each user to a ticket id.
-    // So after the raffle is drawn lucky index number for raffle is chosen and the winners are awarded
-    // Since there are 3 winners raffles will be drawn thrice.
-    // first winner is the first person 25%
-    // second is the 2nd person 15%
-    // third is the 3rd person 10%
-    // This is done by using the keccak function to alter the random value gotten from the vrf request.
-
-    //The random values gotten for each Raffle are just basically indexes which are then looked up in the user-ticket mapping
-
-    //PHASE TWO, Using keepers to automate the payout
 }
